@@ -68,13 +68,13 @@ Color ray_color(const Ray3& r) {
 
 float hit_sphere(const Point3& center, float radius, const Ray3& r) {
     Vector3 oc = r.origin() - center;
-    const auto a = dot(r.direction(), r.direction());
-    const auto b = 2.0f * dot(oc, r.direction());
-    const auto c = dot(oc, oc) - radius * radius;
-    const auto discriminant = b * b - 4.0f * a * c;
+    const auto a = r.direction().length_squared();
+    const auto half_b = dot(oc, r.direction());
+    const auto c = oc.length_squared() - radius * radius;
+    const auto discriminant = half_b * half_b - a * c;
     if(discriminant < 0.0f) {
         return -1.0f;
     } else {
-        return (-b - std::sqrt(discriminant)) / (2.0f * a);
+        return (-half_b - std::sqrt(discriminant)) / a;
     }
 }
