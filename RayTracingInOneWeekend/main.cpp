@@ -6,7 +6,7 @@
 #include <string>
 
 Color ray_color(const Ray3& r);
-bool hit_sphere(const Point3& center, float radius, const Ray3& r);
+float hit_sphere(const Point3& center, float radius, const Ray3& r);
 
 int main(int argc, char** argv) {
 
@@ -56,19 +56,25 @@ int main(int argc, char** argv) {
 }
 
 Color ray_color(const Ray3& r) {
-    if(hit_sphere(Point3(0, 0, -1), 0.5f, r)) {
-        return Color(1, 0, 0);
+    if(auto t = hit_sphere(Point3(0, 0, -1), 0.5f, r); t > 0.0f) {
+        Vector3 N = unit_vector(r.at(t) - Vector3(0, 0, -1));
+        return 0.5f * Color(N.x() + 1, N.y() + 1, N.z() + 1);
+    } else {
+        Vector3 direction = unit_vector(r.direction());
+        t = 0.5f * (direction.y() + 1.0f);
+        return (1.0f - t) * Color(1.0f, 1.0f, 1.0f) + t * Color(0.5f, 0.7f, 1.0f);
     }
-    Vector3 direction = unit_vector(r.direction());
-    auto t = 0.5f * (direction.y() + 1.0f);
-    return (1.0f - t) * Color(1.0f, 1.0f, 1.0f) + t * Color(0.5f, 0.7f, 1.0f);
 }
 
-bool hit_sphere(const Point3& center, float radius, const Ray3& r) {
+float hit_sphere(const Point3& center, float radius, const Ray3& r) {
     Vector3 oc = r.origin() - center;
     const auto a = dot(r.direction(), r.direction());
     const auto b = 2.0f * dot(oc, r.direction());
     const auto c = dot(oc, oc) - radius * radius;
     const auto discriminant = b * b - 4.0f * a * c;
-    return discriminant > 0.0f;
+    if(discriminant < 0.0f) {
+        return -1.0f;
+    } else {
+        return (-b - std::sqrt(discriminant)) / (2.0f * a);
+    }
 }
