@@ -18,7 +18,7 @@ public:
     }
 
     void add(std::shared_ptr<Hittable> object) {
-        objects.emplace_back(objects);
+        objects.emplace_back(object);
     }
 
     virtual bool hit(const Ray3& r, float t_min, float t_max, hit_record& rec) const override;
