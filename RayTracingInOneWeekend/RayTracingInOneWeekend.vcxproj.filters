@@ -44,5 +44,8 @@
     <ClInclude Include="HittableList.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="MathUtils.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
