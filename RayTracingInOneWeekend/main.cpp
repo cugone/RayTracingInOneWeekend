@@ -1,11 +1,13 @@
+#include "MathUtils.hpp"
+
 #include "Color.hpp"
-#include "Vector3.hpp"
-#include "Ray3.hpp"
+#include "HittableList.hpp"
+#include "Sphere3.hpp"
 
 #include <iostream>
 #include <string>
 
-Color ray_color(const Ray3& r);
+Color ray_color(const Ray3& r, const Hittable& world);
 float hit_sphere(const Point3& center, float radius, const Ray3& r);
 
 int main(int argc, char** argv) {
@@ -24,6 +26,11 @@ int main(int argc, char** argv) {
             return static_cast<int>(image_width / aspect_ratio);
         }
     }();
+
+    //World
+    HittableList world{};
+    world.add(std::make_shared<Sphere3>(Point3(0.0f, 0.0f, -1.0f), 0.5f));
+    world.add(std::make_shared<Sphere3>(Point3(0.0f, -100.5, -1.0f), 100.0f));
 
     //Camera
     const auto viewport_height = 2.0f;
@@ -47,7 +54,7 @@ int main(int argc, char** argv) {
             const auto u = static_cast<float>(x) / (image_width - 1);
             const auto v = static_cast<float>(y) / (image_height - 1);
             Ray3 r{origin, lower_left_corner + u * horizontal + v * vertical - origin};
-            Color pixel_color = ray_color(r);
+            Color pixel_color = ray_color(r, world);
             write_color(std::cout, pixel_color);
         }
     }
@@ -55,15 +62,14 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-Color ray_color(const Ray3& r) {
-    if(auto t = hit_sphere(Point3(0, 0, -1), 0.5f, r); t > 0.0f) {
-        Vector3 N = unit_vector(r.at(t) - Vector3(0, 0, -1));
-        return 0.5f * Color(N.x() + 1, N.y() + 1, N.z() + 1);
-    } else {
-        Vector3 direction = unit_vector(r.direction());
-        t = 0.5f * (direction.y() + 1.0f);
-        return (1.0f - t) * Color(1.0f, 1.0f, 1.0f) + t * Color(0.5f, 0.7f, 1.0f);
+Color ray_color(const Ray3& r, const Hittable& world) {
+    hit_record rec{};
+    if(world.hit(r, 0, infinity, rec)) {
+        return 0.5f * (rec.normal + Color(1, 1, 1));
     }
+    Vector3 direction = unit_vector(r.direction());
+    auto t = 0.5f * (direction.y() + 1.0f);
+    return (1.0f - t) * Color(1.0f, 1.0f, 1.0f) + t * Color(0.5f, 0.7f, 1.0f);
 }
 
 float hit_sphere(const Point3& center, float radius, const Ray3& r) {
