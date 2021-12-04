@@ -15,6 +15,7 @@ int main(int argc, char** argv) {
     std::cout << "P3\n" << image_width << ' ' << image_height << '\n' << max_pixel_value << '\n';
 
     for(int y = image_height - 1; y >= 0; --y) {
+        std::cerr << "\rScanlines remaining: " << y << ' ' << std::flush;
         for(int x = 0; x < image_width; ++x) {
             const auto r = static_cast<double>(x) / (image_width - 1);
             const auto g = static_cast<double>(y) / (image_height - 1);
@@ -27,5 +28,6 @@ int main(int argc, char** argv) {
             std::cout << ir << ' ' << ig << ' ' << ib << '\n';
         }
     }
+    std::cerr << "\nDone.\n";
     return 0;
 }
