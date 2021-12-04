@@ -41,5 +41,8 @@
     <ClInclude Include="Sphere3.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="HittableList.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

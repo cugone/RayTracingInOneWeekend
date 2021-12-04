@@ -148,6 +148,7 @@
   <ItemGroup>
     <ClInclude Include="Color.hpp" />
     <ClInclude Include="Hittable.hpp" />
+    <ClInclude Include="HittableList.hpp" />
     <ClInclude Include="Ray3.hpp" />
     <ClInclude Include="Sphere3.hpp" />
     <ClInclude Include="Vector3.hpp" />
