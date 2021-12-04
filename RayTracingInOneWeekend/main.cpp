@@ -6,6 +6,7 @@
 #include <string>
 
 Color ray_color(const Ray3& r);
+bool hit_sphere(const Point3& center, float radius, const Ray3& r);
 
 int main(int argc, char** argv) {
 
@@ -55,7 +56,19 @@ int main(int argc, char** argv) {
 }
 
 Color ray_color(const Ray3& r) {
+    if(hit_sphere(Point3(0, 0, -1), 0.5f, r)) {
+        return Color(1, 0, 0);
+    }
     Vector3 direction = unit_vector(r.direction());
     auto t = 0.5f * (direction.y() + 1.0f);
     return (1.0f - t) * Color(1.0f, 1.0f, 1.0f) + t * Color(0.5f, 0.7f, 1.0f);
+}
+
+bool hit_sphere(const Point3& center, float radius, const Ray3& r) {
+    Vector3 oc = r.origin() - center;
+    const auto a = dot(r.direction(), r.direction());
+    const auto b = 2.0f * dot(oc, r.direction());
+    const auto c = dot(oc, oc) - radius * radius;
+    const auto discriminant = b * b - 4.0f * a * c;
+    return discriminant > 0.0f;
 }
