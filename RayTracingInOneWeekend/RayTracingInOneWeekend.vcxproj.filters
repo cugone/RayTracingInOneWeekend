@@ -35,5 +35,11 @@
     <ClInclude Include="Ray3.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Hittable.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Sphere3.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
