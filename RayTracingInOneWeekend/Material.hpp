@@ -18,10 +18,19 @@ public:
     Vector3 attenuation{};
     Vector3 direction{};
     Color color{};
+    float roughness = 1.0f;
+    float metallic = 0.0f;
     Material::Type type{};
 protected:
 private:
 };
 
-Material make_lambertian(const Color& color);
-Material make_metal(const Color& color);
+struct MaterialDesc {
+    Color color{1.0f, 1.0f, 1.0f};
+    float roughness{1.0f};
+    float metallic{0.0f};
+};
+
+Material make_material(const MaterialDesc& desc);
+Material make_lambertian(const MaterialDesc& desc);
+Material make_metal(const MaterialDesc& desc);
