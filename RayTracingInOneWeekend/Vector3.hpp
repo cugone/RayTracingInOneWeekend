@@ -25,6 +25,7 @@ public:
         m_e[0] += rhs.m_e[0];
         m_e[1] += rhs.m_e[1];
         m_e[2] += rhs.m_e[2];
+        return *this;
     }
 
     Vector3& operator*=(const float t) {
