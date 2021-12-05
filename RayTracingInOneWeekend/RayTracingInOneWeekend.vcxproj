@@ -148,6 +148,7 @@
     <ClCompile Include="Vector3.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Camera.hpp" />
     <ClInclude Include="Color.hpp" />
     <ClInclude Include="Hittable.hpp" />
     <ClInclude Include="HittableList.hpp" />
