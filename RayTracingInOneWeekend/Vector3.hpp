@@ -1,5 +1,7 @@
 #pragma once
 
+#include "MathUtils.hpp"
+
 #include <cmath>
 #include <ostream>
 
@@ -45,6 +47,14 @@ public:
 
     float length() const {
         return std::sqrt(length_squared());
+    }
+
+    inline static Vector3 random() {
+        return Vector3{random_float(), random_float(), random_float()};
+    }
+
+    inline static Vector3 random(float min, float max) {
+        return Vector3{random_float(min, max), random_float(min, max), random_float(min, max)};
     }
 
 protected:
@@ -95,4 +105,12 @@ inline Vector3 cross(const Vector3& u, const Vector3& v) {
 
 inline Vector3 unit_vector(Vector3 v) {
     return v / v.length();
+}
+
+Vector3 random_in_unit_sphere() {
+    for(;;) {
+        const auto p = Vector3::random(-1.0f, 1.0f);
+        if(p.length_squared() > 1.0f) continue;
+        return p;
+    }
 }

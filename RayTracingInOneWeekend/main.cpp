@@ -64,7 +64,8 @@ int main(int argc, char** argv) {
 Color ray_color(const Ray3& r, const Hittable& world) {
     hit_record rec{};
     if(world.hit(r, 0, infinity, rec)) {
-        return 0.5f * (rec.normal + Color(1, 1, 1));
+        Point3 target = rec.p + rec.normal + random_in_unit_sphere();
+        return 0.5f * ray_color(Ray3{ rec.p, target - rec.p }, world, depth - 1);
     }
     Vector3 direction = unit_vector(r.direction());
     auto t = 0.5f * (direction.y() + 1.0f);
