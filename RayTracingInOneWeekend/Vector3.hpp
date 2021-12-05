@@ -112,6 +112,8 @@ inline Vector3 unit_vector(Vector3 v) {
     return v / v.length();
 }
 
+Vector3 reflect(const Vector3& v, const Vector3& n);
+
 Vector3 random_in_unit_sphere();
 
 Vector3 random_unit_vector();

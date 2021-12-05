@@ -3,6 +3,7 @@
 #include "Camera.hpp"
 #include "Color.hpp"
 #include "HittableList.hpp"
+#include "Material.hpp"
 #include "Sphere3.hpp"
 
 #include <iostream>
@@ -37,8 +38,15 @@ int main(int argc, char** argv) {
 
     //World
     HittableList world{};
-    world.add(std::make_shared<Sphere3>(Point3(0.0f, 0.0f, -1.0f), 0.5f, make_lambertian(Color{ 0.7f, 0.3f, 0.3f })));
-    world.add(std::make_shared<Sphere3>(Point3(0.0f, -100.5, -1.0f), 100.0f, make_lambertian(Color{ 0.8f, 0.8f, 0.0f })));
+    const auto material_ground = make_lambertian(Color{ 0.8f, 0.8f, 0.0f });
+    const auto material_center = make_lambertian(Color{ 0.7f, 0.3f, 0.3f });
+    const auto material_left = make_metal(Color{ 0.8f, 0.8f, 0.8f });
+    const auto material_right = make_metal(Color{ 0.8f, 0.6f, 0.2f });
+
+    world.add(std::make_shared<Sphere3>(Point3(0.0f, -100.5, -1.0f), 100.0f, material_ground));
+    world.add(std::make_shared<Sphere3>(Point3(0.0f, 0.0f, -1.0f), 0.5f, material_center));
+    world.add(std::make_shared<Sphere3>(Point3(-1.0f, 0.0f, -1.0f), 0.5f, material_left));
+    world.add(std::make_shared<Sphere3>(Point3(1.0f, 0.0f, -1.0f), 0.5f, material_right));
 
     //Camera
     Camera camera;
@@ -73,9 +81,13 @@ Color ray_color(const Ray3& r, const Hittable& world, int depth) {
         return Color{0.0f, 0.0f, 0.0f};
     }
     if(world.hit(r, 0.001f, infinity, rec)) {
-        Point3 target = rec.p + rec.normal + random_unit_vector();
-        return 0.5f * ray_color(Ray3{ rec.p, target - rec.p }, world, depth - 1);
+        Ray3 scattered{};
+        if(rec.material.scatter(r, rec, scattered)) {
+            return rec.material.color * ray_color(scattered, world, depth - 1);
+        }
+        return Color{0.0f, 0.0f, 0.0f};
     }
+
     Vector3 direction = unit_vector(r.direction());
     auto t = 0.5f * (direction.y() + 1.0f);
     return (1.0f - t) * Color(1.0f, 1.0f, 1.0f) + t * Color(0.5f, 0.7f, 1.0f);

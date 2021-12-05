@@ -11,3 +11,7 @@ Vector3 random_in_unit_sphere() {
 Vector3 random_unit_vector() {
     return unit_vector(random_in_unit_sphere());
 }
+
+Vector3 reflect(const Vector3& v, const Vector3& n) {
+    return v - 2.0f * dot(v, n) * n;
+}

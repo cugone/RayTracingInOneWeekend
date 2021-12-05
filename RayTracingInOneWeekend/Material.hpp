@@ -10,6 +10,7 @@ public:
     enum class Type {
         None
         ,Lambertian
+        ,Metal
     };
 
     bool scatter(const Ray3& ray_in, const hit_record& rec, Ray3& result);
@@ -23,3 +24,4 @@ private:
 };
 
 Material make_lambertian(const Color& color);
+Material make_metal(const Color& color);
