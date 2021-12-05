@@ -8,7 +8,7 @@
 #include <iostream>
 #include <string>
 
-Color ray_color(const Ray3& r, const Hittable& world);
+Color ray_color(const Ray3& r, const Hittable& world, int depth);
 float hit_sphere(const Point3& center, float radius, const Ray3& r);
 
 int main(int argc, char** argv) {
@@ -30,6 +30,10 @@ int main(int argc, char** argv) {
     const int samples_per_pixel = [argc, argv]() {
         return argc > 3 ? static_cast<int>(std::stoll(argv[3])) : 100;
     }();
+    const int max_depth = [argc, argv]() {
+        return argc > 4 ? static_cast<int>(std::stoll(argv[4])) : 50;
+    }();
+
 
     //World
     HittableList world{};
@@ -52,7 +56,7 @@ int main(int argc, char** argv) {
                 const auto u = (x + random_float()) / (image_width - 1);
                 const auto v = (y + random_float()) / (image_height - 1);
                 Ray3 r = camera.get_ray(u, v);
-                pixel_color += ray_color(r, world);
+                pixel_color += ray_color(r, world, max_depth);
             }
             write_color(std::cout, pixel_color, samples_per_pixel);
         }
@@ -61,8 +65,11 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-Color ray_color(const Ray3& r, const Hittable& world) {
+Color ray_color(const Ray3& r, const Hittable& world, int depth) {
     hit_record rec{};
+    if(depth <= 0) {
+        return Color{0.0f, 0.0f, 0.0f};
+    }
     if(world.hit(r, 0, infinity, rec)) {
         Point3 target = rec.p + rec.normal + random_in_unit_sphere();
         return 0.5f * ray_color(Ray3{ rec.p, target - rec.p }, world, depth - 1);
