@@ -21,6 +21,7 @@ bool Material::scatter([[maybe_unused]] const Ray3& ray_in, const hit_record& re
     {
         direction = reflect(unit_vector(ray_in.direction()), rec.normal);
         result = Ray3{rec.p, direction};
+        return (dot(result.direction(), rec.normal) > 0);
     }
     default:
     {
