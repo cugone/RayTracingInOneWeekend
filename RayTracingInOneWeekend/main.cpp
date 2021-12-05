@@ -67,6 +67,8 @@ int main(int argc, char** argv) {
 
 Color ray_color(const Ray3& r, const Hittable& world, int depth) {
     hit_record rec{};
+
+    //If we've exceeded the ray bounce limit, no more light is gathered.
     if(depth <= 0) {
         return Color{0.0f, 0.0f, 0.0f};
     }
