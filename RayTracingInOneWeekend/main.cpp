@@ -72,7 +72,7 @@ Color ray_color(const Ray3& r, const Hittable& world, int depth) {
     if(depth <= 0) {
         return Color{0.0f, 0.0f, 0.0f};
     }
-    if(world.hit(r, 0, infinity, rec)) {
+    if(world.hit(r, 0.001f, infinity, rec)) {
         Point3 target = rec.p + rec.normal + random_in_unit_sphere();
         return 0.5f * ray_color(Ray3{ rec.p, target - rec.p }, world, depth - 1);
     }
