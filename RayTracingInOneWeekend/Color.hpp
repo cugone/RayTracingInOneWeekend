@@ -3,6 +3,7 @@
 #include "Vector3.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 
 void write_color(std::ostream& out, Color pixel_color, int samples_per_pixel) {
@@ -11,16 +12,16 @@ void write_color(std::ostream& out, Color pixel_color, int samples_per_pixel) {
     auto g = pixel_color.y();
     auto b = pixel_color.z();
 
-    // DIvide the color by the number of samples.
+    // Divide the color by the number of samples and gamma-correct for gamma = 2.0
     const auto scale = 1.0f / samples_per_pixel;
-    r *= scale;
-    g *= scale;
-    b *= scale;
+    r = std::sqrt(scale * r);
+    g = std::sqrt(scale * g);
+    b = std::sqrt(scale * b);
 
-    //Write the translated [0l255] value of each color component.
-    out << static_cast<int>(256 * std::clamp(r, 0.0f, 0.999f)) << ' '
-        << static_cast<int>(256 * std::clamp(g, 0.0f, 0.999f)) << ' '
-        << static_cast<int>(256 * std::clamp(b, 0.0f, 0.999f)) << '\n';
+    //Write the translated [0, 255] value of each color component.
+    out << static_cast<int>(255 * std::clamp(r, 0.0f, 1.0f)) << ' '
+        << static_cast<int>(255 * std::clamp(g, 0.0f, 1.0f)) << ' '
+        << static_cast<int>(255 * std::clamp(b, 0.0f, 1.0f)) << '\n';
 
 }
 

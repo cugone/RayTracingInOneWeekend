@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
             for(int sample = 0; sample < samples_per_pixel; ++sample) {
                 const auto u = (x + random_float()) / (image_width - 1);
                 const auto v = (y + random_float()) / (image_height - 1);
-                Ray3 r = camera.get_ray(u, v);
+                const auto r = camera.get_ray(u, v);
                 pixel_color += ray_color(r, world, max_depth);
             }
             write_color(std::cout, pixel_color, samples_per_pixel);
