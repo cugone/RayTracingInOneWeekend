@@ -17,6 +17,3 @@ inline float random_float() {
     static std::mt19937 g;
     return d(g);
 }
-
-#include "Ray3.hpp"
-#include "Vector3.hpp"
