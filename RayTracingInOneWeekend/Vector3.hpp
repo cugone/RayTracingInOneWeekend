@@ -57,6 +57,11 @@ public:
         return Vector3{random_float(min, max), random_float(min, max), random_float(min, max)};
     }
 
+    bool near_zero() const {
+        const auto epsilon = 1e-8;
+        return (std::abs(m_e[0]) < epsilon) && (std::abs(m_e[1]) < epsilon) && (std::abs(m_e[2]) < epsilon);
+    }
+
 protected:
 private:
     float m_e[3];
@@ -107,14 +112,6 @@ inline Vector3 unit_vector(Vector3 v) {
     return v / v.length();
 }
 
-Vector3 random_in_unit_sphere() {
-    for(;;) {
-        const auto p = Vector3::random(-1.0f, 1.0f);
-        if(p.length_squared() > 1.0f) continue;
-        return p;
-    }
-}
+Vector3 random_in_unit_sphere();
 
-Vector3 random_unit_vector() {
-    return unit_vector(random_in_unit_sphere());
-}
+Vector3 random_unit_vector();

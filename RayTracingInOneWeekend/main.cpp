@@ -37,8 +37,8 @@ int main(int argc, char** argv) {
 
     //World
     HittableList world{};
-    world.add(std::make_shared<Sphere3>(Point3(0.0f, 0.0f, -1.0f), 0.5f));
-    world.add(std::make_shared<Sphere3>(Point3(0.0f, -100.5, -1.0f), 100.0f));
+    world.add(std::make_shared<Sphere3>(Point3(0.0f, 0.0f, -1.0f), 0.5f, make_lambertian(Color{ 0.7f, 0.3f, 0.3f })));
+    world.add(std::make_shared<Sphere3>(Point3(0.0f, -100.5, -1.0f), 100.0f, make_lambertian(Color{ 0.8f, 0.8f, 0.0f })));
 
     //Camera
     Camera camera;

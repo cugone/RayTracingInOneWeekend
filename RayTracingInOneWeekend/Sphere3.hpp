@@ -2,6 +2,7 @@
 
 #include "Hittable.hpp"
 #include "Vector3.hpp"
+#include "Material.hpp"
 
 #include <cmath>
 
@@ -14,13 +15,13 @@ public:
     Sphere3& operator=(Sphere3&& other) = default;
     virtual ~Sphere3() = default;
 
-    Sphere3(const Point3& c, float r) : center{ c }, radius{ r } {};
+    Sphere3(const Point3& c, float r, Material m) : center{ c }, radius{ r }, material{m} {};
 
     bool hit(const Ray3& r, float t_min, float t_max, hit_record& rec) const override;
 
     Point3 center{};
     float radius{1.0f};
-
+    Material material{};
 protected:
 private:
     
@@ -52,6 +53,7 @@ bool Sphere3::hit(const Ray3& r, float t_min, float t_max, hit_record& rec) cons
     rec.p = r.at(rec.t);
     Vector3 outward_normal = (rec.p - center) / radius;
     rec.set_face_normal(r, outward_normal);
+    rec.material = material;
 
     return true;
 }

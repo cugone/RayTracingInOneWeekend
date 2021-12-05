@@ -2,10 +2,12 @@
 
 #include "Ray3.hpp"
 #include "Vector3.hpp"
+#include "Material.hpp"
 
 struct hit_record {
     Point3 p{};
     Vector3 normal{};
+    Material material{};
     float t;
     bool hit{false};
     bool front_face{ false };
