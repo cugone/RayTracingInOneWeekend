@@ -25,9 +25,19 @@ bool Material::scatter([[maybe_unused]] const Ray3& ray_in, const hit_record& re
     }
     case Type::Glass:
     {
-        const auto refraction_ratio = rec.front_face ? (1.0f / refractionIndex) : refractionIndex;
-        const auto unit_direction = unit_vector(ray_in.direction());
-        direction = refract(unit_direction, rec.normal, refraction_ratio);
+
+        direction = [&rec, &ray_in, this]() {
+            const auto refraction_ratio = rec.front_face ? (1.0f / refractionIndex) : refractionIndex;
+            const auto unit_direction = unit_vector(ray_in.direction());
+            const auto cos_theta = std::fmin(dot(-unit_direction, rec.normal), 1.0f);
+            const auto sin_theta = std::sqrt(1.0f - cos_theta * cos_theta);
+            const auto cannot_refract = refraction_ratio * sin_theta > 1.0f;
+            if(cannot_refract) {
+                return reflect(unit_direction, rec.normal);
+            } else {
+                return refract(unit_direction, rec.normal, refraction_ratio);
+            }
+        }();
         result = Ray3{ rec.p, direction };
         return true;
     }
