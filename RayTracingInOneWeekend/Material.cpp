@@ -23,6 +23,14 @@ bool Material::scatter([[maybe_unused]] const Ray3& ray_in, const hit_record& re
         result = Ray3{rec.p, direction + roughness * random_in_unit_sphere()};
         return (dot(result.direction(), rec.normal) > 0);
     }
+    case Type::Glass:
+    {
+        const auto refraction_ratio = rec.front_face ? (1.0f / refractionIndex) : refractionIndex;
+        const auto unit_direction = unit_vector(ray_in.direction());
+        direction = refract(unit_direction, rec.normal, refraction_ratio);
+        result = Ray3{ rec.p, direction };
+        return true;
+    }
     default:
     {
         return false;
@@ -46,6 +54,7 @@ Material make_lambertian(const MaterialDesc& desc) {
     lambertian.type = Material::Type::Lambertian;
     lambertian.roughness = desc.roughness < 1.0f ? desc.roughness : 1.0f;
     lambertian.metallic = desc.metallic;
+    lambertian.refractionIndex = desc.refractionIndex;
     return lambertian;
 }
 
@@ -55,6 +64,18 @@ Material make_metal(const MaterialDesc& desc) {
     metal.attenuation = Vector3{1.0f, 0.0f, 0.0f};
     metal.roughness = desc.roughness < 1.0f ? desc.roughness : 1.0f;
     metal.metallic = desc.metallic;
+    metal.refractionIndex = desc.refractionIndex;
     metal.type = Material::Type::Metal;
     return metal;
+}
+
+Material make_dielectric(const MaterialDesc& desc) {
+    Material glass{};
+    glass.color = desc.color;
+    glass.attenuation = Vector3{1.0f, 1.0f, 1.0f};
+    glass.roughness = desc.roughness < 1.0f ? desc.roughness : 1.0f;
+    glass.metallic = 0.0f;
+    glass.refractionIndex = desc.refractionIndex;
+    glass.type = Material::Type::Glass;
+    return glass;
 }

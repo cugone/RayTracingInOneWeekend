@@ -11,6 +11,7 @@ public:
         None
         ,Lambertian
         ,Metal
+        ,Glass
     };
 
     bool scatter(const Ray3& ray_in, const hit_record& rec, Ray3& result);
@@ -20,6 +21,7 @@ public:
     Color color{};
     float roughness = 1.0f;
     float metallic = 0.0f;
+    float refractionIndex = 1.0f;
     Material::Type type{};
 protected:
 private:
@@ -29,8 +31,11 @@ struct MaterialDesc {
     Color color{1.0f, 1.0f, 1.0f};
     float roughness{1.0f};
     float metallic{0.0f};
+    float refractionIndex{1.0f};
 };
 
 Material make_material(const MaterialDesc& desc);
 Material make_lambertian(const MaterialDesc& desc);
 Material make_metal(const MaterialDesc& desc);
+Material make_dielectric(const MaterialDesc& desc);
+
