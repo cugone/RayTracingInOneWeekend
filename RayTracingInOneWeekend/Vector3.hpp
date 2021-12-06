@@ -12,55 +12,32 @@ public:
     Vector3(Vector3&& other) = default;
     Vector3& operator=(const Vector3& other) = default;
     Vector3& operator=(Vector3&& other) = default;
-    Vector3(float e0, float e1, float e2) : m_e{ e0, e1, e2 } {};
+    Vector3(float e0, float e1, float e2);
     ~Vector3() = default;
 
-    float x() const { return m_e[0]; };
-    float y() const { return m_e[1]; };
-    float z() const { return m_e[2]; };
+    float x() const;
+    float y() const;
+    float z() const;
 
-    Vector3 operator-() const { return Vector3{-m_e[0], -m_e[1], -m_e[2]}; };
-    float operator[](int i) const { return m_e[i]; }
-    float& operator[](int i) { return m_e[i]; }
+    Vector3 operator-() const;
+    float operator[](int i) const;
+    float& operator[](int i);
 
-    Vector3& operator+=(const Vector3& rhs) {
-        m_e[0] += rhs.m_e[0];
-        m_e[1] += rhs.m_e[1];
-        m_e[2] += rhs.m_e[2];
-        return *this;
-    }
+    Vector3& operator+=(const Vector3& rhs);
 
-    Vector3& operator*=(const float t) {
-        m_e[0] *= t;
-        m_e[1] *= t;
-        m_e[2] *= t;
-        return *this;
-    }
+    Vector3& operator*=(const float t);
 
-    Vector3& operator/=(const float t) {
-        return *this *= 1.0f / t;
-    }
+    Vector3& operator/=(const float t);
 
-    float length_squared() const {
-        return m_e[0] * m_e[0] + m_e[1] * m_e[1] + m_e[2] * m_e[2];
-    }
+    float length_squared() const;
 
-    float length() const {
-        return std::sqrt(length_squared());
-    }
+    float length() const;
 
-    inline static Vector3 random() {
-        return Vector3{random_float(), random_float(), random_float()};
-    }
+    static Vector3 random();
 
-    inline static Vector3 random(float min, float max) {
-        return Vector3{random_float(min, max), random_float(min, max), random_float(min, max)};
-    }
+    static Vector3 random(float min, float max);
 
-    bool near_zero() const {
-        const auto epsilon = 1e-8;
-        return (std::abs(m_e[0]) < epsilon) && (std::abs(m_e[1]) < epsilon) && (std::abs(m_e[2]) < epsilon);
-    }
+    bool near_zero() const;
 
 protected:
 private:
@@ -70,47 +47,25 @@ private:
 using Point3 = Vector3;
 using Color = Vector3;
 
-inline std::ostream& operator<<(std::ostream& out, const Vector3& v) {
-    return out << v.x() << ' ' << v.y() << ' ' << v.z();
-}
+std::ostream& operator<<(std::ostream& out, const Vector3& v);
 
-inline Vector3 operator+(const Vector3& u, const Vector3& v) {
-    return Vector3{ u.x() + v.x(), u.y() + v.y(), u.z() + v.z() };
-}
+Vector3 operator+(const Vector3& u, const Vector3& v);
 
-inline Vector3 operator-(const Vector3& u, const Vector3& v) {
-    return Vector3{u.x() - v.x(), u.y() - v.y(), u.z() - v.z()};
-}
+Vector3 operator-(const Vector3& u, const Vector3& v);
 
-inline Vector3 operator*(const Vector3& u, const Vector3& v) {
-    return Vector3{u.x() * v.x(), u.y() * v.y(), u.z() * v.z()};
-}
+Vector3 operator*(const Vector3& u, const Vector3& v);
 
-inline Vector3 operator*(float t, const Vector3& v) {
-    return Vector3{t * v.x(), t * v.y(), t * v.z()};
-}
+Vector3 operator*(float t, const Vector3& v);
 
-inline Vector3 operator*(const Vector3& v, float t) {
-    return t * v;
-}
+Vector3 operator*(const Vector3& v, float t);
 
-inline Vector3 operator/(const Vector3& v, float t) {
-    return (1 / t) * v;
-}
+Vector3 operator/(const Vector3& v, float t);
 
-inline float dot(const Vector3& u, const Vector3& v) {
-    return u.x() * v.x() + u.y() * v.y() + u.z() * v.z();
-}
+float dot(const Vector3& u, const Vector3& v);
 
-inline Vector3 cross(const Vector3& u, const Vector3& v) {
-    return Vector3{u.y() * v.z() - u.z() * v.y(),
-                   u.z() * v.x() - u.x() * v.z(),
-                   u.x() * v.y() - u.y() * v.x()};
-}
+Vector3 cross(const Vector3& u, const Vector3& v);
 
-inline Vector3 unit_vector(Vector3 v) {
-    return v / v.length();
-}
+Vector3 unit_vector(Vector3 v);
 
 Vector3 reflect(const Vector3& v, const Vector3& n);
 
