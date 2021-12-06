@@ -5,22 +5,24 @@
 
 class Camera {
 public:
-    Camera() : Camera(90, 16.0f / 9.0f) {};
-    Camera(float vfovDegrees, float aspect_ratio) {
+    Camera(Point3 lookFrom, Point3 lookAt, Vector3 vUp, float vfovDegrees, float aspectRatio) {
         const auto theta = degrees_to_radians(vfovDegrees);
         const auto h = std::tan(theta * 0.5f);
         const auto viewport_height = 2.0f * h;
-        const auto viewport_width = aspect_ratio * viewport_height;
-        const auto focal_length = 1.0f;
+        const auto viewport_width = aspectRatio * viewport_height;
 
-        origin = Point3{ 0.0f, 0.0f, 0.0f };
-        horizontal = Vector3{ viewport_width, 0.0f, 0.0f };
-        vertical = Vector3{ 0.0f, viewport_height, 0.0f };
-        lower_left_corner = origin - horizontal / 2.0f - vertical / 2.0f - Vector3{0.0f, 0.0f, focal_length};
+        const auto w = unit_vector(lookFrom - lookAt);
+        const auto u = unit_vector(cross(vUp, w));
+        const auto v = cross(w, u);
+
+        origin = lookFrom;
+        horizontal = viewport_width * u;
+        vertical = viewport_height * v;
+        lower_left_corner = origin - horizontal * 0.5f - vertical * 0.5f - w;
     }
 
-    Ray3 get_ray(float u, float v) const {
-        return Ray3{origin, lower_left_corner + u * horizontal + v * vertical - origin};
+    Ray3 get_ray(float s, float t) const {
+        return Ray3{origin, lower_left_corner + s * horizontal + t * vertical - origin};
     }
 protected:
 private:
