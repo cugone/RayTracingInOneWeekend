@@ -36,6 +36,7 @@ Material make_material(const MaterialDesc& desc) {
     m.metallic = desc.metallic;
     m.roughness = desc.roughness;
     m.attenuation = Vector3{1.0f, 0.0f, 0.0f};
+    return m;
 }
 
 Material make_lambertian(const MaterialDesc& desc) {
