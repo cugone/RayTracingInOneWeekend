@@ -52,7 +52,13 @@ int main(int argc, char** argv) {
     world.add(std::make_shared<Sphere3>(Point3{1.0f, 0.0f, -1.0f}, 0.5f, material_right));
 
     //Camera
-    Camera camera{ Point3{-2.0f, 2.0f, 1.0f}, Point3{0.0f, 0.0f, -1.0f}, Vector3{0.0f, 1.0f, 0.0f}, 90, aspect_ratio };
+    const auto lookFrom = Point3{3.0f, 3.0f, 2.0f};
+    const auto lookAt = Point3{0.0f, 0.0f, -1.0f};
+    const auto vUp = Vector3{0.0f, 1.0f, 0.0f};
+    const auto distance_to_focus = (lookFrom - lookAt).length();
+    const auto aperture = 2.0f;
+
+    Camera camera{lookFrom, lookAt, vUp, 20, aspect_ratio, aperture, distance_to_focus};
 
     //Render
     const int max_pixel_value = 255;

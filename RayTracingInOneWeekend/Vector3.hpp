@@ -74,3 +74,5 @@ Vector3 refract(const Vector3& uv, const Vector3& n, float eta_over_etaprime);
 Vector3 random_in_unit_sphere();
 
 Vector3 random_unit_vector();
+
+Vector3 random_in_unit_disk();

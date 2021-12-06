@@ -50,6 +50,14 @@ Vector3 random_unit_vector() {
     return unit_vector(random_in_unit_sphere());
 }
 
+Vector3 random_in_unit_disk() {
+    for(;;) {
+        const auto p = Vector3{random_float(-1.0f, 1.0f), random_float(-1.0f, 1.0f), 0.0f};
+        if(p.length_squared() >= 1.0f) continue;
+        return p;
+    }
+}
+
 Vector3 unit_vector(Vector3 v) {
     return v / v.length();
 }
