@@ -47,6 +47,7 @@ int main(int argc, char** argv) {
     world.add(std::make_shared<Sphere3>(Point3(0.0f, -100.5, -1.0f), 100.0f, material_ground));
     world.add(std::make_shared<Sphere3>(Point3(0.0f, 0.0f, -1.0f), 0.5f, material_center));
     world.add(std::make_shared<Sphere3>(Point3(-1.0f, 0.0f, -1.0f), 0.5f, material_left));
+    world.add(std::make_shared<Sphere3>(Point3(-1.0f, 0.0f, -1.0f), -0.4f, material_left));
     world.add(std::make_shared<Sphere3>(Point3(1.0f, 0.0f, -1.0f), 0.5f, material_right));
 
     //Camera
