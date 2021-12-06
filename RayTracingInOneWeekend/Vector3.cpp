@@ -58,6 +58,10 @@ Vector3 reflect(const Vector3& v, const Vector3& n) {
     return v - 2.0f * dot(v, n) * n;
 }
 
+Vector3 refract(const Vector3& uv, const Vector3& n, float eta_over_etaprime) {
+
+}
+
 Vector3& Vector3::operator/=(const float t) {
     return *this *= 1.0f / t;
 }
