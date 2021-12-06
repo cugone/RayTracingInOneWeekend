@@ -38,17 +38,13 @@ int main(int argc, char** argv) {
 
 
     //World
+    const auto R = std::cos(pi / 4.0f);
     HittableList world{};
-    const auto material_ground = make_lambertian(MaterialDesc{Color{ 0.8f, 0.8f, 0.0f }, 1.0f, 0.0f});
-    const auto material_center = make_lambertian(MaterialDesc{Color{ 0.1f, 0.2f, 0.5f }, 1.0f, 0.0f});
-    const auto material_left = make_dielectric(MaterialDesc{ Color{ 1.0f, 1.0f, 1.0f }, 0.0f, 0.0f, 1.5f });
-    const auto material_right = make_metal(MaterialDesc{Color{ 0.8f, 0.6f, 0.2f }, 0.0f, 1.0f});
+    const auto material_left = make_lambertian(MaterialDesc{Color{ 0.0f, 0.0f, 1.0f }});
+    const auto material_right = make_lambertian(MaterialDesc{Color{ 1.0f, 0.0f, 0.0f }});
 
-    world.add(std::make_shared<Sphere3>(Point3(0.0f, -100.5, -1.0f), 100.0f, material_ground));
-    world.add(std::make_shared<Sphere3>(Point3(0.0f, 0.0f, -1.0f), 0.5f, material_center));
-    world.add(std::make_shared<Sphere3>(Point3(-1.0f, 0.0f, -1.0f), 0.5f, material_left));
-    world.add(std::make_shared<Sphere3>(Point3(-1.0f, 0.0f, -1.0f), -0.4f, material_left));
-    world.add(std::make_shared<Sphere3>(Point3(1.0f, 0.0f, -1.0f), 0.5f, material_right));
+    world.add(std::make_shared<Sphere3>(Point3(-R, 0.0f, -1.0f), R, material_left));
+    world.add(std::make_shared<Sphere3>(Point3(R, 0.0f, -1.0f), R, material_right));
 
     //Camera
     Camera camera;

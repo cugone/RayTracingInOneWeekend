@@ -5,9 +5,11 @@
 
 class Camera {
 public:
-    Camera() {
-        const auto aspect_ratio = 16.0f / 9.0f;
-        const auto viewport_height = 2.0f;
+    Camera() : Camera(90, 16.0f / 9.0f) {};
+    Camera(float vfovDegrees, float aspect_ratio) {
+        const auto theta = degrees_to_radians(vfovDegrees);
+        const auto h = std::tan(theta * 0.5f);
+        const auto viewport_height = 2.0f * h;
         const auto viewport_width = aspect_ratio * viewport_height;
         const auto focal_length = 1.0f;
 
