@@ -7,6 +7,7 @@
 #include "Sphere3.hpp"
 
 #include <iostream>
+#include <fstream>
 #include <string>
 
 Color ray_color(const Ray3& r, const Hittable& world, int depth);
@@ -54,8 +55,8 @@ int main(int argc, char** argv) {
     //Render
     const int max_pixel_value = 255;
 
-    std::cout << "P3\n" << image_width << ' ' << image_height << '\n' << max_pixel_value << '\n';
-
+    std::ofstream bin_file("image_binary.ppm", std::ios_base::binary);
+    bin_file << "P6\n" << image_width << ' ' << image_height << '\n' << max_pixel_value << '\n';
     for(int y = image_height - 1; y >= 0; --y) {
         std::cerr << "\rScanlines remaining: " << y << ' ' << std::flush;
         for(int x = 0; x < image_width; ++x) {
@@ -66,10 +67,11 @@ int main(int argc, char** argv) {
                 const auto r = camera.get_ray(u, v);
                 pixel_color += ray_color(r, world, max_depth);
             }
-            write_color(std::cout, pixel_color, samples_per_pixel);
+            write_color_binary(bin_file, pixel_color, samples_per_pixel);
         }
     }
     std::cerr << "\nDone.\n";
+    bin_file.close();
     return 0;
 }
 
