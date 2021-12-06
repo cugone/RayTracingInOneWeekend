@@ -12,6 +12,8 @@
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
+#Project-specific output file
+image*.ppm
 
 # Mono auto generated files
 mono_crash.*
