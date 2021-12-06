@@ -59,7 +59,10 @@ Vector3 reflect(const Vector3& v, const Vector3& n) {
 }
 
 Vector3 refract(const Vector3& uv, const Vector3& n, float eta_over_etaprime) {
-
+    const auto cos_theta = std::fmin(dot(-uv, n), 1.0f);
+    const auto perpendicular = eta_over_etaprime * (uv + cos_theta * n);
+    const auto parallel = -std::sqrt(std::fabs(1.0f - perpendicular.length_squared())) * n;
+    return perpendicular + parallel;
 }
 
 Vector3& Vector3::operator/=(const float t) {
