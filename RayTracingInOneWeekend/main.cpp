@@ -40,9 +40,9 @@ int main(int argc, char** argv) {
     //World
     HittableList world{};
     const auto material_ground = make_lambertian(MaterialDesc{Color{ 0.8f, 0.8f, 0.0f }, 1.0f, 0.0f});
-    const auto material_center = make_lambertian(MaterialDesc{Color{ 0.7f, 0.3f, 0.3f }, 1.0f, 0.0f });
-    const auto material_left = make_metal(MaterialDesc{ Color{ 0.8f, 0.8f, 0.8f }, 0.0f, 1.0f });
-    const auto material_right = make_metal(MaterialDesc{Color{ 0.8f, 0.6f, 0.2f }, 0.0f, 1.0f});
+    const auto material_center = make_dielectric(MaterialDesc{Color{ 1.0f, 1.0f, 1.0f }, 1.0f, 0.0f, 1.5f});
+    const auto material_left = make_dielectric(MaterialDesc{ Color{ 1.0f, 1.0f, 1.0f }, 0.0f, 0.0f, 1.5f });
+    const auto material_right = make_metal(MaterialDesc{Color{ 0.8f, 0.6f, 0.2f }, 1.0f, 0.0f});
 
     world.add(std::make_shared<Sphere3>(Point3(0.0f, -100.5, -1.0f), 100.0f, material_ground));
     world.add(std::make_shared<Sphere3>(Point3(0.0f, 0.0f, -1.0f), 0.5f, material_center));
