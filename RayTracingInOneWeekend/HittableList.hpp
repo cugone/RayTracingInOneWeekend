@@ -21,13 +21,13 @@ public:
         objects.emplace_back(object);
     }
 
-    virtual bool hit(const Ray3& r, float t_min, float t_max, hit_record& rec) const override;
+    constexpr virtual bool hit(const Ray3& r, float t_min, float t_max, hit_record& rec) const override;
 protected:
 private:
     std::vector<std::shared_ptr<Hittable>> objects;
 };
 
-bool HittableList::hit(const Ray3& r, float t_min, float t_max, hit_record& rec) const {
+constexpr bool HittableList::hit(const Ray3& r, float t_min, float t_max, hit_record& rec) const {
     hit_record temp_rec{};
     bool hit_anything = false;
     auto closest = t_max;

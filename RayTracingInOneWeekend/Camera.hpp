@@ -22,7 +22,7 @@ public:
         lens_radius = aperture * 0.5f;
     }
 
-    Ray3 get_ray(float s, float t) const {
+    constexpr Ray3 get_ray(float s, float t) const {
         const auto rd = lens_radius * random_in_unit_disk();
         const auto offset = u * rd.x() + v * rd.y();
         return Ray3{origin + offset, lower_left_corner + s * horizontal + t * vertical - origin - offset};

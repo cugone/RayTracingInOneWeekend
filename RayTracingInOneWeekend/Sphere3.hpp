@@ -8,14 +8,14 @@
 
 class Sphere3 : public Hittable {
 public:
-    Sphere3() = default;
-    Sphere3(const Sphere3& other) = default;
-    Sphere3(Sphere3&& other) = default;
-    Sphere3& operator=(const Sphere3& other) = default;
-    Sphere3& operator=(Sphere3&& other) = default;
-    virtual ~Sphere3() = default;
+    constexpr Sphere3() = default;
+    constexpr Sphere3(const Sphere3& other) = default;
+    constexpr Sphere3(Sphere3&& other) = default;
+    constexpr Sphere3& operator=(const Sphere3& other) = default;
+    constexpr Sphere3& operator=(Sphere3&& other) = default;
+    constexpr virtual ~Sphere3() = default;
 
-    Sphere3(const Point3& c, float r, Material m) : center{ c }, radius{ r }, material{m} {};
+    constexpr Sphere3(const Point3& c, float r, Material m) : center{ c }, radius{ r }, material{m} {};
 
     bool hit(const Ray3& r, float t_min, float t_max, hit_record& rec) const override;
 
@@ -51,7 +51,7 @@ bool Sphere3::hit(const Ray3& r, float t_min, float t_max, hit_record& rec) cons
     rec.hit = true;
     rec.t = root;
     rec.p = r.at(rec.t);
-    Vector3 outward_normal = (rec.p - center) / radius;
+    const Vector3 outward_normal = (rec.p - center) / radius;
     rec.set_face_normal(r, outward_normal);
     rec.material = material;
 

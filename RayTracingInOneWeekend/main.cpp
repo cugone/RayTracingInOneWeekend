@@ -12,34 +12,19 @@
 #include <string>
 #include <chrono>
 
-Color ray_color(const Ray3& r, const Hittable& world, int depth);
+constexpr Color ray_color(const Ray3& r, const Hittable& world, int depth);
 float hit_sphere(const Point3& center, float radius, const Ray3& r);
 
 HittableList random_scene();
 
-int main(int argc, char** argv) {
+int main() {
 
     //Image
-    float aspect_ratio = 3.0f / 2.0f;
-    const int image_width = [argc, argv]() -> const int {
-        return argc > 1 ? static_cast<int>(std::stoll(argv[1])) : 400;
-    }();
-    const int image_height = [argc, argv, image_width, &aspect_ratio]() -> const int {
-        if(argc > 2) {
-            const int h = static_cast<int>(std::stoll(argv[2]));
-            aspect_ratio = image_width / static_cast<float>(h);
-            return h;
-        } else {
-            return static_cast<int>(image_width / aspect_ratio);
-        }
-    }();
-    const int samples_per_pixel = [argc, argv]() {
-        return argc > 3 ? static_cast<int>(std::stoll(argv[3])) : 100;
-    }();
-    const int max_depth = [argc, argv]() {
-        return argc > 4 ? static_cast<int>(std::stoll(argv[4])) : 50;
-    }();
-
+    constexpr float aspect_ratio = 3.0f / 2.0f;
+    constexpr int image_width = 400;
+    constexpr int image_height = static_cast<int>(image_width / aspect_ratio);
+    constexpr int samples_per_pixel = 100;
+    constexpr int max_depth = 50;
 
     //World
     HittableList world = random_scene();
@@ -48,13 +33,13 @@ int main(int argc, char** argv) {
     const auto lookFrom = Point3{13.0f, 2.0f, 3.0f};
     const auto lookAt = Point3{0.0f, 0.0f, 0.0f};
     const auto vUp = Vector3{0.0f, 1.0f, 0.0f};
-    const auto distance_to_focus = 10.0f;
-    const auto aperture = 0.1f;
+    constexpr auto distance_to_focus = 10.0f;
+    constexpr auto aperture = 0.1f;
 
-    Camera camera{lookFrom, lookAt, vUp, 20, aspect_ratio, aperture, distance_to_focus};
+    const Camera camera{lookFrom, lookAt, vUp, 20, aspect_ratio, aperture, distance_to_focus};
 
     //Render
-    const int max_pixel_value = 255;
+    constexpr int max_pixel_value = 255;
 
     std::ofstream bin_file("image_binary.ppm", std::ios_base::binary);
     bin_file << "P6\n" << image_width << ' ' << image_height << '\n' << max_pixel_value << '\n';
@@ -80,7 +65,7 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-Color ray_color(const Ray3& r, const Hittable& world, int depth) {
+constexpr Color ray_color(const Ray3& r, const Hittable& world, int depth) {
     hit_record rec{};
 
     //If we've exceeded the ray bounce limit, no more light is gathered.

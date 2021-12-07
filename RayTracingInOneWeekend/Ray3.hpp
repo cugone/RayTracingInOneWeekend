@@ -5,18 +5,18 @@
 class Ray3 {
 public:
     Ray3() = default;
-    Ray3(const Ray3& other) = default;
-    Ray3(Ray3&& other) = default;
-    Ray3& operator=(const Ray3& other) = default;
-    Ray3& operator=(Ray3&& other) = default;
-    ~Ray3() = default;
+    constexpr Ray3(const Ray3& other) = default;
+    constexpr Ray3(Ray3&& other) = default;
+    constexpr Ray3& operator=(const Ray3& other) = default;
+    constexpr Ray3& operator=(Ray3&& other) = default;
+    constexpr ~Ray3() = default;
 
-    Ray3(const Point3& origin, const Vector3& direction) : o{ origin }, d{ direction } {}
+    constexpr Ray3(const Point3& origin, const Vector3& direction) : o{ origin }, d{ direction } {}
 
-    Point3 origin() const { return o; }
-    Vector3 direction() const { return d; }
+    constexpr Point3 origin() const { return o; }
+    constexpr Vector3 direction() const { return d; }
 
-    Point3 at(float t) const {
+    constexpr Point3 at(float t) const {
         return o + t * d;
     }
 

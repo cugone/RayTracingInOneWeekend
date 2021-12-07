@@ -12,7 +12,7 @@ std::ostream& operator<<(std::ostream& out, const Vector3& v) {
     return out << v.x() << ' ' << v.y() << ' ' << v.z();
 }
 
-Vector3 operator+(const Vector3& u, const Vector3& v) {
+constexpr Vector3 operator+(const Vector3& u, const Vector3& v) {
     return Vector3{ u.x() + v.x(), u.y() + v.y(), u.z() + v.z() };
 }
 
@@ -24,7 +24,7 @@ Vector3 operator*(const Vector3& u, const Vector3& v) {
     return Vector3{ u.x() * v.x(), u.y() * v.y(), u.z() * v.z() };
 }
 
-Vector3 operator*(float t, const Vector3& v) {
+constexpr Vector3 operator*(float t, const Vector3& v) {
     return Vector3{ t * v.x(), t * v.y(), t * v.z() };
 }
 
@@ -36,7 +36,7 @@ Vector3 operator/(const Vector3& v, float t) {
     return (1 / t) * v;
 }
 
-float dot(const Vector3& u, const Vector3& v) {
+constexpr float dot(const Vector3& u, const Vector3& v) {
     return u.x() * v.x() + u.y() * v.y() + u.z() * v.z();
 }
 
@@ -78,49 +78,41 @@ Vector3& Vector3::operator/=(const float t) {
 }
 
 Vector3& Vector3::operator*=(const float t) {
-    m_e[0] *= t;
-    m_e[1] *= t;
-    m_e[2] *= t;
+    m_x *= t;
+    m_y *= t;
+    m_z *= t;
     return *this;
 }
 
 Vector3& Vector3::operator+=(const Vector3& rhs) {
-    m_e[0] += rhs.m_e[0];
-    m_e[1] += rhs.m_e[1];
-    m_e[2] += rhs.m_e[2];
+    m_x += rhs.m_x;
+    m_y += rhs.m_y;
+    m_z += rhs.m_z;
     return *this;
 }
 
-Vector3::Vector3(float e0, float e1, float e2) : m_e{ e0, e1, e2 } {
+constexpr Vector3::Vector3(float e0, float e1, float e2) : m_x{ e0 }, m_y{ e1 }, m_z{ e2 } {
 
 }
 
-float Vector3::x() const {
-    return m_e[0];
+constexpr float Vector3::x() const {
+    return m_x;
 }
 
-float Vector3::y() const {
-    return m_e[1];
+constexpr float Vector3::y() const {
+    return m_y;
 }
 
-float Vector3::z() const {
-    return m_e[2];
+constexpr float Vector3::z() const {
+    return m_z;
 }
 
-Vector3 Vector3::operator-() const {
-    return Vector3{ -m_e[0], -m_e[1], -m_e[2] };
+constexpr Vector3 Vector3::operator-() const {
+    return Vector3{ -m_x, -m_y, -m_z };
 }
 
-float& Vector3::operator[](int i) {
-    return m_e[i];
-}
-
-float Vector3::operator[](int i) const {
-    return m_e[i];
-}
-
-float Vector3::length_squared() const {
-    return m_e[0] * m_e[0] + m_e[1] * m_e[1] + m_e[2] * m_e[2];
+constexpr float Vector3::length_squared() const {
+    return m_x * m_x + m_y * m_y + m_z * m_z;
 }
 
 float Vector3::length() const {
@@ -137,5 +129,5 @@ Vector3 Vector3::random() {
 
 bool Vector3::near_zero() const {
     const auto epsilon = 1e-8;
-    return (std::abs(m_e[0]) < epsilon) && (std::abs(m_e[1]) < epsilon) && (std::abs(m_e[2]) < epsilon);
+    return (std::abs(m_x) < epsilon) && (std::abs(m_y) < epsilon) && (std::abs(m_z) < epsilon);
 }

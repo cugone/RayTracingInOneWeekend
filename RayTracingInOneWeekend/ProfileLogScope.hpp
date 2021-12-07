@@ -14,11 +14,11 @@ public:
     explicit ProfileLogScope(const char* scopeName) noexcept;
     ~ProfileLogScope() noexcept;
 
-    ProfileLogScope() = delete;
-    ProfileLogScope(const ProfileLogScope&) = delete;
-    ProfileLogScope(ProfileLogScope&&) = delete;
-    ProfileLogScope& operator=(const ProfileLogScope&) = delete;
-    ProfileLogScope& operator=(ProfileLogScope&&) = delete;
+    constexpr ProfileLogScope() = delete;
+    constexpr ProfileLogScope(const ProfileLogScope&) = delete;
+    constexpr ProfileLogScope(ProfileLogScope&&) = delete;
+    constexpr ProfileLogScope& operator=(const ProfileLogScope&) = delete;
+    constexpr ProfileLogScope& operator=(ProfileLogScope&&) = delete;
 
 protected:
 private:
