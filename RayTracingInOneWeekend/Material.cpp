@@ -7,7 +7,7 @@ bool Material::scatter([[maybe_unused]] const Ray3& ray_in, const hit_record& re
     switch(type) {
     case Type::Lambertian:
     {
-        direction = [&rec, this]() {
+        const auto direction = [&rec, this]() {
             auto result = rec.normal + roughness * random_unit_vector();
             if(result.near_zero()) {
                 result = rec.normal;
@@ -19,7 +19,7 @@ bool Material::scatter([[maybe_unused]] const Ray3& ray_in, const hit_record& re
     }
     case Type::Metal:
     {
-        direction = metallic * reflect(unit_vector(ray_in.direction()), rec.normal);
+        const auto direction = metallic * reflect(unit_vector(ray_in.direction()), rec.normal);
         result = Ray3{rec.p, direction + roughness * random_in_unit_sphere()};
         return (dot(result.direction(), rec.normal) > 0);
     }
@@ -31,7 +31,7 @@ bool Material::scatter([[maybe_unused]] const Ray3& ray_in, const hit_record& re
             r0 = r0 * r0;
             return r0 + (1.0f - r0) * std::pow((1.0f - cosine), 5.0f);
         };
-        direction = [&rec, &ray_in, this]() {
+        const auto direction = [&rec, &ray_in, this]() {
             const auto refraction_ratio = rec.front_face ? (1.0f / refractionIndex) : refractionIndex;
             const auto unit_direction = unit_vector(ray_in.direction());
             const auto cos_theta = std::fmin(dot(-unit_direction, rec.normal), 1.0f);
