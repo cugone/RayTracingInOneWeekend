@@ -17,7 +17,6 @@ public:
     bool scatter(const Ray3& ray_in, const hit_record& rec, Ray3& result);
 
     Vector3 attenuation{};
-    Vector3 direction{};
     Color color{};
     float roughness = 1.0f;
     float metallic = 0.0f;
