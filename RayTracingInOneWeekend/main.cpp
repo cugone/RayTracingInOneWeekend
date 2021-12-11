@@ -11,11 +11,30 @@
 #include <fstream>
 #include <string>
 #include <chrono>
+#include <vector>
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 #include <windowsx.h>
+
+#include <d3d11_4.h>
+#include <dxgi1_6.h>
+
+// DEBUG STUFF
+#include <D3Dcommon.h>
+#include <d3d11sdklayers.h>
+#include <dxgidebug.h>
+
+// LIBS
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "DXGI.lib")
+#pragma comment(lib, "dxguid.lib")
+
+#include <d3d11shader.h>
+#include <d3dcompiler.h>
+#pragma comment(lib, "d3dcompiler.lib")
+
 
 Color ray_color(const Ray3& r, const Hittable& world, int depth);
 float hit_sphere(const Point3& center, float radius, const Ray3& r);
@@ -26,7 +45,9 @@ HittableList random_scene();
 
 int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int);
 
-bool Create();
+HWND Create();
+bool InitializeDX11(HWND hwnd);
+
 void RunMessagePump();
 bool UnRegister();
 
@@ -35,16 +56,14 @@ bool isQuitting = false;
 #define GetHInstance() ::GetModuleHandleA(nullptr)
 
 int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
+
     //Create Window 1600x900 client area
-    if (Create()) {
-
-		while (!isQuitting) {
-			RunMessagePump();
-		}
-
-        //Create DX11 Instance
-        //Create DX11 Device
-        //Create Shader
+    if (auto hwnd = Create(); hwnd) {
+        if(InitializeDX11(hwnd)) {
+            while (!isQuitting) {
+                RunMessagePump();
+            }
+        }
         UnRegister();
     }
 }
@@ -73,7 +92,7 @@ bool Register() {
     return 0 != ::RegisterClassEx(&wndcls);
 }
 
-bool Create() {
+HWND Create() {
     if (Register()) {
         RECT rect{ 0, 0, 1600, 900 };
         auto windowStyle = WS_OVERLAPPEDWINDOW;
@@ -83,11 +102,184 @@ bool Create() {
             if (auto hwnd = ::CreateWindowA("SimpleWindowClass", "Raytracing in One Weekend", windowStyle, CW_USEDEFAULT, CW_USEDEFAULT, width, height, nullptr, nullptr, GetHInstance(), nullptr); hwnd) {
                 hdc = ::GetDCEx(hwnd, nullptr, 0);
                 ::ShowWindow(hwnd, SW_SHOW);
-                return true;
+                return hwnd;
             }
         }
     }
-    return false;
+    return 0;
+}
+
+bool InitializeDX11(HWND hwnd) {
+
+	//Create DX11 Device
+	ID3D11Device* tempDevice{};
+	ID3D11DeviceContext* tempDeviceContext{};
+	D3D_FEATURE_LEVEL featureLevels[] = {
+		D3D_FEATURE_LEVEL_11_1,
+		D3D_FEATURE_LEVEL_11_0
+	};
+	if (auto hresult = ::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, featureLevels, 2, D3D11_SDK_VERSION, &tempDevice, nullptr, &tempDeviceContext); FAILED(hresult)) {
+		return false;
+	}
+
+	ID3D11Device5* device{};
+	if (auto hresult = tempDevice->QueryInterface(__uuidof(ID3D11Device5), reinterpret_cast<void**>(&device)); FAILED(hresult)) {
+        tempDeviceContext->Release();
+        tempDeviceContext = nullptr;
+		tempDevice->Release();
+		tempDevice = nullptr;
+		return false;
+	}
+	else {
+		tempDevice->Release();
+		tempDevice = nullptr;
+	}
+
+	ID3D11DeviceContext4* deviceContext{};
+	if (auto hresult = tempDeviceContext->QueryInterface(__uuidof(ID3D11DeviceContext4), reinterpret_cast<void**>(&deviceContext)); FAILED(hresult)) {
+		tempDeviceContext->Release();
+		tempDeviceContext = nullptr;
+		tempDevice->Release();
+		tempDevice = nullptr;
+		return false;
+	}
+	else {
+		tempDeviceContext->Release();
+		tempDeviceContext = nullptr;
+	}
+
+	//Create DXGI interfaces
+
+    //Get IDXGI Device
+
+    IDXGIDevice4* dxgiDevice{};
+    if (auto hresult = device->QueryInterface(__uuidof(IDXGIDevice4), reinterpret_cast<void**>(&dxgiDevice)); FAILED(hresult)) {
+    	device->Release();
+		device = nullptr;
+        deviceContext->Release();
+        deviceContext = nullptr;
+        return false;
+    }
+
+    //Get Adapter
+    IDXGIAdapter4* adapter{};
+    if (auto hresult = dxgiDevice->GetParent(__uuidof(IDXGIAdapter4), reinterpret_cast<void**>(&adapter)); FAILED(hresult)) {
+		dxgiDevice->Release();
+		dxgiDevice = nullptr;
+		device->Release();
+		device = nullptr;
+		deviceContext->Release();
+		deviceContext = nullptr;
+		return false;
+
+    }
+
+	IDXGIFactory4* tempFactory{};
+    if (auto hresult = adapter->GetParent(__uuidof(IDXGIFactory4), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
+		dxgiDevice->Release();
+		dxgiDevice = nullptr;
+		device->Release();
+		device = nullptr;
+		deviceContext->Release();
+		deviceContext = nullptr;
+    }
+
+    IDXGIFactory7* factory{};
+    if(auto hresult = tempFactory->QueryInterface(__uuidof(IDXGIFactory7), reinterpret_cast<void**>(&factory)); FAILED(hresult)) {
+        tempFactory->Release();
+        tempFactory = nullptr;
+		dxgiDevice->Release();
+		dxgiDevice = nullptr;
+		device->Release();
+		device = nullptr;
+		deviceContext->Release();
+		deviceContext = nullptr;
+        return false;
+    }
+	tempFactory->Release();
+	tempFactory = nullptr;
+
+
+	std::vector<IDXGIAdapter4*> adapters{};
+	{
+		IDXGIAdapter4* cur_adapter{};
+		for (unsigned int i = 0u;
+			SUCCEEDED(factory->EnumAdapterByGpuPreference(
+				i,
+				DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+				__uuidof(IDXGIAdapter4),
+				reinterpret_cast<void**>(&cur_adapter)));
+			++i) {
+			adapters.push_back(cur_adapter);
+		}
+
+		if (adapters.empty()) {
+			cur_adapter->Release();
+			cur_adapter = nullptr;
+			return false;
+		}
+	}
+
+    auto* chosen_adapter = adapters[0];
+
+	std::vector<IDXGIOutput*> outputs;
+	{
+		IDXGIOutput* output;
+		for (int i = 0; DXGI_ERROR_NOT_FOUND != chosen_adapter->EnumOutputs(i, &output); ++i) {
+			outputs.push_back(output);
+		}
+	}
+
+	//Create Swapchain
+	DXGI_SWAP_CHAIN_DESC1 desc{};
+	desc.Width = 0;
+	desc.Height = 0;
+	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	desc.Stereo = FALSE;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	desc.BufferCount = 2;
+	desc.Scaling = DXGI_SCALING_STRETCH;
+	desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+	desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+	desc.Flags = 0;
+
+	IDXGISwapChain1* swapchain1{};
+    if (auto hresult = factory->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
+        factory->Release();
+        factory = nullptr;
+		dxgiDevice->Release();
+		dxgiDevice = nullptr;
+		device->Release();
+		device = nullptr;
+		deviceContext->Release();
+		deviceContext = nullptr;
+        return false;
+    }
+
+	IDXGISwapChain4* swapchain4{};
+    if (auto hresult = swapchain1->QueryInterface(__uuidof(IDXGISwapChain4), reinterpret_cast<void**>(&swapchain4)); FAILED(hresult)) {
+		swapchain1->Release();
+		swapchain1 = nullptr;
+		factory->Release();
+		factory = nullptr;
+		dxgiDevice->Release();
+		dxgiDevice = nullptr;
+		device->Release();
+		device = nullptr;
+		deviceContext->Release();
+		deviceContext = nullptr;
+    }
+	swapchain1->Release();
+	swapchain1 = nullptr;
+
+    //TODO (casey): Start Here
+    //swapchain4->GetBuffer(/* Fill In BackBuffer UUID */);
+
+	//Create Shader
+
+    return true;
 }
 
 void RunMessagePump() {
