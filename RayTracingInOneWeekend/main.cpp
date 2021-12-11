@@ -12,10 +12,117 @@
 #include <string>
 #include <chrono>
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <windowsx.h>
+
 Color ray_color(const Ray3& r, const Hittable& world, int depth);
 float hit_sphere(const Point3& center, float radius, const Ray3& r);
 
 HittableList random_scene();
+
+#ifdef _WIN32
+
+int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int);
+
+bool Create();
+void RunMessagePump();
+bool UnRegister();
+
+bool isQuitting = false;
+
+#define GetHInstance() ::GetModuleHandleA(nullptr)
+
+int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
+    //Create Window 1600x900 client area
+    if (Create()) {
+
+		while (!isQuitting) {
+			RunMessagePump();
+		}
+
+        //Create DX11 Instance
+        //Create DX11 Device
+        //Create Shader
+        UnRegister();
+    }
+}
+
+constexpr const std::size_t max_name_string = 256u;
+
+HDC hdc{};
+WNDCLASSEX wndcls{};
+
+LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wParam, _In_ LPARAM lParam);
+
+bool Register() {
+	wndcls.cbSize = sizeof(WNDCLASSEX);
+	auto style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+	wndcls.style = style;
+	wndcls.lpfnWndProc = WindowProcedure;
+	wndcls.cbClsExtra = 0;
+	wndcls.cbWndExtra = 0;
+	wndcls.hInstance = GetHInstance();
+	wndcls.hIcon = ::LoadIcon(0, IDI_APPLICATION);
+	wndcls.hCursor = ::LoadCursorA(GetHInstance(), IDC_ARROW);
+	wndcls.hbrBackground = (HBRUSH)::GetStockObject(NULL_BRUSH);
+	wndcls.lpszMenuName = nullptr;
+	wndcls.lpszClassName = "SimpleWindowClass";
+	wndcls.hIconSm = ::LoadIcon(0, IDI_APPLICATION);
+    return 0 != ::RegisterClassEx(&wndcls);
+}
+
+bool Create() {
+    if (Register()) {
+        RECT rect{ 0, 0, 1600, 900 };
+        auto windowStyle = WS_OVERLAPPEDWINDOW;
+        if (::AdjustWindowRect(&rect, windowStyle, false)) {
+            const auto width = rect.right - rect.left;
+            const auto height = rect.bottom - rect.top;
+            if (auto hwnd = ::CreateWindowA("SimpleWindowClass", "Raytracing in One Weekend", windowStyle, CW_USEDEFAULT, CW_USEDEFAULT, width, height, nullptr, nullptr, GetHInstance(), nullptr); hwnd) {
+                hdc = ::GetDCEx(hwnd, nullptr, 0);
+                ::ShowWindow(hwnd, SW_SHOW);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void RunMessagePump() {
+
+	MSG msg{};
+	for (;;) {
+		const BOOL hasMsg = ::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
+		if (!hasMsg) {
+			break;
+		}
+		::TranslateMessage(&msg);
+		::DispatchMessage(&msg);
+	}
+}
+
+bool UnRegister() {
+	return 0 != ::UnregisterClass(wndcls.lpszClassName, nullptr);
+}
+
+LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wParam, _In_ LPARAM lParam) {
+    switch (Msg) {
+    case WM_CLOSE:
+        ::DestroyWindow(hWnd);
+        return 0;
+    case WM_DESTROY:
+        isQuitting = true;
+        break;
+    default:
+        return ::DefWindowProc(hWnd, Msg, wParam, lParam);
+    }
+    return ::DefWindowProc(hWnd, Msg, wParam, lParam);
+}
+
+
+#else
 
 int main(int argc, char** argv) {
 
@@ -79,6 +186,8 @@ int main(int argc, char** argv) {
     bin_file.close();
     return 0;
 }
+
+#endif
 
 Color ray_color(const Ray3& r, const Hittable& world, int depth) {
     hit_record rec{};
