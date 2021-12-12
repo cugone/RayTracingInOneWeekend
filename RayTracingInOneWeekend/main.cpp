@@ -18,15 +18,17 @@
 #include <windows.h>
 #include <windowsx.h>
 
+#include <shellapi.h>
+
+#pragma comment(lib, "Shell32.lib")
+
 #include <d3d11_4.h>
 #include <dxgi1_6.h>
 
-// DEBUG STUFF
 #include <D3Dcommon.h>
 #include <d3d11sdklayers.h>
 #include <dxgidebug.h>
 
-// LIBS
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "DXGI.lib")
 #pragma comment(lib, "dxguid.lib")
@@ -94,7 +96,22 @@ bool Register() {
 
 HWND Create() {
     if (Register()) {
-        RECT rect{ 0, 0, 1600, 900 };
+        int argc{ 0 };
+        RECT rect{};
+        float aspect_ratio = 16.0f / 9.0f;
+        if(auto* argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc); argc <= 1 || argv == nullptr) {
+            rect = RECT{0, 0, 1600, 900};
+            ::LocalFree(argv);
+        }
+        else {
+            const auto width = argc > 1 ? static_cast<int>(std::stoll(argv[1])) : 1600;
+            const auto height = argc > 2 ? static_cast<int>(std::stoll(argv[2])) : static_cast<int>(std::floor(static_cast<float>(width) / aspect_ratio));
+            if (argc > 2) {
+                aspect_ratio = static_cast<float>(width) / static_cast<float>(height);
+            }
+            rect = RECT{0, 0, width, height};
+            ::LocalFree(argv);
+        }
         auto windowStyle = WS_OVERLAPPEDWINDOW;
         if (::AdjustWindowRect(&rect, windowStyle, false)) {
             const auto width = rect.right - rect.left;
