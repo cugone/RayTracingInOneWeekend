@@ -59,7 +59,6 @@ bool isQuitting = false;
 
 int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
 
-    //Create Window 1600x900 client area
     if (auto hwnd = Create(); hwnd) {
         if(InitializeDX11(hwnd)) {
             while (!isQuitting) {
@@ -126,6 +125,8 @@ HWND Create() {
     return 0;
 }
 
+ID3D11RenderTargetView* backbuffer{};
+
 bool InitializeDX11(HWND hwnd) {
 
 	//Create DX11 Device
@@ -169,48 +170,47 @@ bool InitializeDX11(HWND hwnd) {
 
     //Get IDXGI Device
 
-    IDXGIDevice4* dxgiDevice{};
-    if (auto hresult = device->QueryInterface(__uuidof(IDXGIDevice4), reinterpret_cast<void**>(&dxgiDevice)); FAILED(hresult)) {
-    	device->Release();
-		device = nullptr;
+    auto ReleaseDeviceAndContext = [&]() {
+        device->Release();
+        device = nullptr;
         deviceContext->Release();
         deviceContext = nullptr;
+    };
+
+    IDXGIDevice4* dxgiDevice{};
+    if (auto hresult = device->QueryInterface(__uuidof(IDXGIDevice4), reinterpret_cast<void**>(&dxgiDevice)); FAILED(hresult)) {
+        ReleaseDeviceAndContext();
         return false;
     }
+
+    auto ReleaseDxgiDevice = [&]() {
+        dxgiDevice->Release();
+        dxgiDevice = nullptr;
+    };
+
+    auto ReleaseDXCoreResources = [&]() {
+        ReleaseDxgiDevice();
+        ReleaseDeviceAndContext();
+    };
 
     //Get Adapter
     IDXGIAdapter4* adapter{};
     if (auto hresult = dxgiDevice->GetParent(__uuidof(IDXGIAdapter4), reinterpret_cast<void**>(&adapter)); FAILED(hresult)) {
-		dxgiDevice->Release();
-		dxgiDevice = nullptr;
-		device->Release();
-		device = nullptr;
-		deviceContext->Release();
-		deviceContext = nullptr;
+        ReleaseDXCoreResources();
 		return false;
 
     }
 
 	IDXGIFactory4* tempFactory{};
     if (auto hresult = adapter->GetParent(__uuidof(IDXGIFactory4), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
-		dxgiDevice->Release();
-		dxgiDevice = nullptr;
-		device->Release();
-		device = nullptr;
-		deviceContext->Release();
-		deviceContext = nullptr;
+        ReleaseDXCoreResources();
     }
 
     IDXGIFactory7* factory{};
     if(auto hresult = tempFactory->QueryInterface(__uuidof(IDXGIFactory7), reinterpret_cast<void**>(&factory)); FAILED(hresult)) {
         tempFactory->Release();
         tempFactory = nullptr;
-		dxgiDevice->Release();
-		dxgiDevice = nullptr;
-		device->Release();
-		device = nullptr;
-		deviceContext->Release();
-		deviceContext = nullptr;
+        ReleaseDXCoreResources();
         return false;
     }
 	tempFactory->Release();
@@ -231,8 +231,11 @@ bool InitializeDX11(HWND hwnd) {
 		}
 
 		if (adapters.empty()) {
-			cur_adapter->Release();
-			cur_adapter = nullptr;
+            if (cur_adapter) {
+                cur_adapter->Release();
+                cur_adapter = nullptr;
+            }
+            ReleaseDXCoreResources();
 			return false;
 		}
 	}
@@ -262,16 +265,15 @@ bool InitializeDX11(HWND hwnd) {
 	desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 	desc.Flags = 0;
 
-	IDXGISwapChain1* swapchain1{};
-    if (auto hresult = factory->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
+    auto ReleaseDXGlobalResources = [&]() {
         factory->Release();
         factory = nullptr;
-		dxgiDevice->Release();
-		dxgiDevice = nullptr;
-		device->Release();
-		device = nullptr;
-		deviceContext->Release();
-		deviceContext = nullptr;
+        ReleaseDXCoreResources();
+    };
+
+	IDXGISwapChain1* swapchain1{};
+    if (auto hresult = factory->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
+        ReleaseDXGlobalResources();
         return false;
     }
 
@@ -279,21 +281,38 @@ bool InitializeDX11(HWND hwnd) {
     if (auto hresult = swapchain1->QueryInterface(__uuidof(IDXGISwapChain4), reinterpret_cast<void**>(&swapchain4)); FAILED(hresult)) {
 		swapchain1->Release();
 		swapchain1 = nullptr;
-		factory->Release();
-		factory = nullptr;
-		dxgiDevice->Release();
-		dxgiDevice = nullptr;
-		device->Release();
-		device = nullptr;
-		deviceContext->Release();
-		deviceContext = nullptr;
+        ReleaseDXGlobalResources();
     }
 	swapchain1->Release();
 	swapchain1 = nullptr;
 
-    //TODO (casey): Start Here
-    //swapchain4->GetBuffer(/* Fill In BackBuffer UUID */);
 
+	auto ReleaseDXSwapChainAndGlobalResources = [&]() {
+		swapchain4->Release();
+		swapchain4 = nullptr;
+		ReleaseDXGlobalResources();
+	};
+
+    ID3D11Texture2D* tBackbuffer{};
+    if (FAILED(swapchain4->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&tBackbuffer)))) {
+        ReleaseDXSwapChainAndGlobalResources();
+        return false;
+    }
+
+    auto ReleaseDXResources = [&]() {
+        tBackbuffer->Release();
+        tBackbuffer = nullptr;
+        ReleaseDXSwapChainAndGlobalResources();
+    };
+
+    if (FAILED(device->CreateRenderTargetView(tBackbuffer, nullptr, &backbuffer))) {
+        ReleaseDXResources();
+    }
+
+    tBackbuffer->Release();
+    tBackbuffer = nullptr;
+
+    deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
 	//Create Shader
 
     return true;
