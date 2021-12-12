@@ -54,6 +54,7 @@ void RunMessagePump();
 bool UnRegister();
 
 void BeginFrame();
+std::chrono::duration<float> GetCurrentTimeElapsed();
 void Update(float deltaSeconds);
 void Render();
 void EndFrame();
@@ -62,6 +63,12 @@ bool isQuitting = false;
 
 #define GetHInstance() ::GetModuleHandleA(nullptr)
 
+std::chrono::duration<float> GetCurrentTimeElapsed() {
+    static auto initial_now = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+	return (now - initial_now);
+}
+
 int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
 
     if (auto hwnd = Create(); hwnd) {
@@ -69,7 +76,13 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
             while (!isQuitting) {
                 RunMessagePump();
                 BeginFrame();
-                Update(0.0f);
+
+				static auto previousFrameTime = GetCurrentTimeElapsed().count();
+				auto currentFrameTime = GetCurrentTimeElapsed().count();
+				auto deltaSeconds = (currentFrameTime - previousFrameTime);
+				previousFrameTime = currentFrameTime;
+
+                Update(deltaSeconds);
                 Render();
                 EndFrame();
             }
