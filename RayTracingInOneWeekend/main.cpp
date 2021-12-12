@@ -273,40 +273,43 @@ bool InitializeDX11(HWND hwnd) {
 	}
 
 	//Create Swapchain
-	DXGI_SWAP_CHAIN_DESC1 desc{};
-	desc.Width = 0;
-	desc.Height = 0;
-	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	desc.Stereo = FALSE;
-	desc.SampleDesc.Count = 1;
-	desc.SampleDesc.Quality = 0;
-	desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	desc.BufferCount = 2;
-	desc.Scaling = DXGI_SCALING_STRETCH;
-	desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-	desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-	desc.Flags = 0;
+    IDXGISwapChain4* swapchain4{};
 
-    auto ReleaseDXGlobalResources = [&]() {
-        factory->Release();
-        factory = nullptr;
-        ReleaseDXCoreResources();
-    };
+	auto ReleaseDXGlobalResources = [&]() {
+		factory->Release();
+		factory = nullptr;
+		ReleaseDXCoreResources();
+	};
 
-	IDXGISwapChain1* swapchain1{};
-    if (auto hresult = factory->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
-        ReleaseDXGlobalResources();
-        return false;
-    }
+	{
+		DXGI_SWAP_CHAIN_DESC1 desc{};
+		desc.Width = 0;
+		desc.Height = 0;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.Stereo = FALSE;
+		desc.SampleDesc.Count = 1;
+		desc.SampleDesc.Quality = 0;
+		desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		desc.BufferCount = 2;
+		desc.Scaling = DXGI_SCALING_STRETCH;
+		desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+		desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+		desc.Flags = 0;
 
-	IDXGISwapChain4* swapchain4{};
-    if (auto hresult = swapchain1->QueryInterface(__uuidof(IDXGISwapChain4), reinterpret_cast<void**>(&swapchain4)); FAILED(hresult)) {
+		IDXGISwapChain1* swapchain1{};
+		if (auto hresult = factory->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
+			ReleaseDXGlobalResources();
+			return false;
+		}
+
+		if (auto hresult = swapchain1->QueryInterface(__uuidof(IDXGISwapChain4), reinterpret_cast<void**>(&swapchain4)); FAILED(hresult)) {
+			swapchain1->Release();
+			swapchain1 = nullptr;
+			ReleaseDXGlobalResources();
+		}
 		swapchain1->Release();
 		swapchain1 = nullptr;
-        ReleaseDXGlobalResources();
-    }
-	swapchain1->Release();
-	swapchain1 = nullptr;
+	}
 
 
 	auto ReleaseDXSwapChainAndGlobalResources = [&]() {
