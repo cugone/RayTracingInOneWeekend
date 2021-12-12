@@ -53,6 +53,11 @@ bool InitializeDX11(HWND hwnd);
 void RunMessagePump();
 bool UnRegister();
 
+void BeginFrame();
+void Update(float deltaSeconds);
+void Render();
+void EndFrame();
+
 bool isQuitting = false;
 
 #define GetHInstance() ::GetModuleHandleA(nullptr)
@@ -63,6 +68,10 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
         if(InitializeDX11(hwnd)) {
             while (!isQuitting) {
                 RunMessagePump();
+                BeginFrame();
+                Update(0.0f);
+                Render();
+                EndFrame();
             }
         }
         UnRegister();
@@ -347,6 +356,18 @@ LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wPar
         return ::DefWindowProc(hWnd, Msg, wParam, lParam);
     }
     return ::DefWindowProc(hWnd, Msg, wParam, lParam);
+}
+
+void BeginFrame() {
+}
+
+void Update(float /*deltaSeconds*/) {
+}
+
+void Render() {
+}
+
+void EndFrame() {
 }
 
 
