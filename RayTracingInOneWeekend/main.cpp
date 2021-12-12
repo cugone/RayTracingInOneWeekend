@@ -315,6 +315,7 @@ bool InitializeDX11(HWND hwnd) {
 		ReleaseDXGlobalResources();
 	};
 
+    // Create Backbuffer
     ID3D11Texture2D* tBackbuffer{};
     if (FAILED(swapchain4->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&tBackbuffer)))) {
         ReleaseDXSwapChainAndGlobalResources();
@@ -335,8 +336,9 @@ bool InitializeDX11(HWND hwnd) {
     tBackbuffer = nullptr;
 
     deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
-	//Create Shader
 
+	//Create Shader
+    
     return true;
 }
 
