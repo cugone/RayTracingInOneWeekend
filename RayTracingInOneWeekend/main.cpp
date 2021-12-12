@@ -338,8 +338,47 @@ bool InitializeDX11(HWND hwnd) {
     tBackbuffer->Release();
     tBackbuffer = nullptr;
 
-    deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
+    {
+        ID3D11BlendState* state{};
+        D3D11_BLEND_DESC desc{};
+        desc.AlphaToCoverageEnable = false;
+        desc.IndependentBlendEnable = false;
+        auto& brt = desc.RenderTarget[0];
+        brt.BlendEnable = true;
+        brt.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+        brt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+        brt.BlendOp = D3D11_BLEND_OP_ADD;
+        brt.SrcBlendAlpha = D3D11_BLEND_ZERO;
+        brt.DestBlendAlpha = D3D11_BLEND_ZERO;
+        brt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        brt.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+        device->CreateBlendState(&desc, &state);
+        float factor[] = {1.0f, 1.0f, 1.0f, 1.f};
+        deviceContext->OMSetBlendState(state, factor, 0xffffffffu);
+    }
+    {
+        ID3D11SamplerState* state{};
+        D3D11_SAMPLER_DESC desc{};
+        desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+        desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+        desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+        desc.BorderColor[0] = 1.0f;
+        desc.BorderColor[1] = 1.0f;
+        desc.BorderColor[2] = 1.0f;
+        desc.BorderColor[3] = 1.0f;
+        desc.MinLOD = 0.0f;
+        desc.MaxLOD = 1.0f;
+        desc.MipLODBias = 0.0f;
+        desc.ComparisonFunc = D3D11_COMPARISON_LESS;
+        desc.MaxAnisotropy = 0u;
+        desc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+        device->CreateSamplerState(&desc, &state);
 
+        deviceContext->PSSetSamplers(0, 1, &state);
+        deviceContext->VSSetSamplers(0, 1, &state);
+    }
+    deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
+    
 	//Create Shader
     
     return true;
