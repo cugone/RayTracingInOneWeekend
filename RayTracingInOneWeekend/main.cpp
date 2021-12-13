@@ -7,8 +7,10 @@
 #include "Sphere3.hpp"
 #include "ProfileLogScope.hpp"
 
+#include <array>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 #include <string>
 #include <chrono>
 #include <vector>
@@ -148,6 +150,10 @@ HWND Create() {
 }
 
 ID3D11RenderTargetView* backbuffer{};
+ID3D11VertexShader* vs{};
+ID3D11PixelShader* ps{};
+ID3D11Device5* device{};
+ID3D11DeviceContext4* deviceContext{};
 
 bool InitializeDX11(HWND hwnd) {
 
@@ -162,7 +168,6 @@ bool InitializeDX11(HWND hwnd) {
 		return false;
 	}
 
-	ID3D11Device5* device{};
 	if (auto hresult = tempDevice->QueryInterface(__uuidof(ID3D11Device5), reinterpret_cast<void**>(&device)); FAILED(hresult)) {
         tempDeviceContext->Release();
         tempDeviceContext = nullptr;
@@ -175,7 +180,6 @@ bool InitializeDX11(HWND hwnd) {
 		tempDevice = nullptr;
 	}
 
-	ID3D11DeviceContext4* deviceContext{};
 	if (auto hresult = tempDeviceContext->QueryInterface(__uuidof(ID3D11DeviceContext4), reinterpret_cast<void**>(&deviceContext)); FAILED(hresult)) {
 		tempDeviceContext->Release();
 		tempDeviceContext = nullptr;
@@ -380,7 +384,120 @@ bool InitializeDX11(HWND hwnd) {
     deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
     
 	//Create Shader
-    
+    {
+        unsigned int hlsl_flags{0u};
+#ifdef _DEBUG
+        hlsl_flags |= D3DCOMPILE_SKIP_OPTIMIZATION;
+#else
+        hlsl_flags |= D3DCOMPILE_SKIP_VALIDATION;
+        hlsl_flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
+#endif
+        hlsl_flags |= D3DCOMPILE_WARNINGS_ARE_ERRORS;
+        hlsl_flags |= D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR;
+        hlsl_flags |= D3DCOMPILE_ALL_RESOURCES_BOUND;
+        unsigned int fx_flags{0u};
+
+		//Create Vertex Shader
+		{
+			ID3DBlob* vs_bytecode{ nullptr };
+			ID3DBlob* errors{ nullptr };
+			auto path = std::filesystem::path{ "vs.hlsl" };
+            std::error_code ec{};
+            if (std::filesystem::path path_canon = std::filesystem::canonical(path, ec); ec) {
+#ifdef _MSC_VER
+                ::OutputDebugStringA(std::string{path.string() + " could not be accessed. Reason: " + ec.message() + '\n'}.c_str());
+#else
+                std::cout << err_str;
+#endif
+                return false;
+            } else {
+                path.make_preferred();
+                if (auto hresult_compile = ::D3DCompileFromFile(path_canon.wstring().c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_0", hlsl_flags, fx_flags, &vs_bytecode, &errors); FAILED(hresult_compile)) {
+                    ::MessageBoxA(nullptr, "Vertex Shader failed to compile. See Output Window for details.", "D3DCompile Failed", MB_OK);
+                    if (errors) {
+                        std::string err_str(reinterpret_cast<char*>(errors->GetBufferPointer()));
+#ifdef _MSC_VER
+						::OutputDebugStringA(err_str.c_str());
+#else
+                        std::cout << err_str;
+#endif
+                        errors->Release();
+                        errors = nullptr;
+                    }
+                    return false;
+                } else {
+                    if (auto hresult_create = device->CreateVertexShader(vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), nullptr, &vs); FAILED(hresult_create)) {
+						std::string err_str("FAILED TO CREATE VERTEX SHADER\n");
+#ifdef _MSC_VER
+						::OutputDebugStringA(err_str.c_str());
+#else
+						std::cout << err_str;
+#endif
+                        return false;
+                    } else {
+                        const std::array desc = {
+                            D3D11_INPUT_ELEMENT_DESC{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+                            D3D11_INPUT_ELEMENT_DESC{"COLOR"   , 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+                            D3D11_INPUT_ELEMENT_DESC{"TEXCOORD", 2, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+                        };
+                        ID3D11InputLayout* il{};
+                        if (auto hresult_input = device->CreateInputLayout(desc.data(), static_cast<unsigned int>(desc.size()), vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), &il); FAILED(hresult_input)) {
+							std::string err_str("FAILED TO CREATE INPUT LAYOUT\n");
+#ifdef _MSC_VER
+							::OutputDebugStringA(err_str.c_str());
+#else
+							std::cout << err_str;
+#endif
+                            return false;
+                        } else {
+                            deviceContext->IASetInputLayout(il);
+                            //TODO (casey): Create Vertex Buffer? Look in to VertexID since the vertex buffer doesn't do much here.
+                            ID3D11Buffer* vBuffer{ nullptr };
+                            deviceContext->IASetVertexBuffers(0u, 1u, &vBuffer, nullptr, nullptr);
+                            deviceContext->VSSetShader(vs, nullptr, 0u);
+                        }
+                    }
+                }
+            }
+		}
+
+        //Create Pixel Shader
+		{
+			ID3DBlob* ps_bytecode{ nullptr };
+			ID3DBlob* errors{ nullptr };
+			auto path = std::filesystem::path{ "ps.hlsl" };
+            std::error_code ec{};
+			if (std::filesystem::path path_canon = std::filesystem::canonical(path, ec); ec) {
+#ifdef _MSC_VER
+				::OutputDebugStringA(std::string{ path.string() + " could not be accessed. Reason: " + ec.message() + '\n' }.c_str());
+#else
+                std::cout << err_str;
+#endif
+                return false;
+			} else {
+                if (auto hresult_compile = ::D3DCompileFromFile(path_canon.wstring().c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_0", hlsl_flags, fx_flags, &ps_bytecode, &errors); FAILED(hresult_compile)) {
+                    ::MessageBoxA(nullptr, "Pixel Shader failed to compile. See Output Window for details.", "D3DCompile Failed", MB_OK);
+                    if (errors) {
+                        std::string err_str(reinterpret_cast<char*>(errors->GetBufferPointer()));
+#ifdef _MSC_VER
+                        ::OutputDebugStringA(err_str.c_str());
+#else
+                        std::cout << err_str;
+#endif
+                        errors->Release();
+                        errors = nullptr;
+                    }
+                    return false;
+                } else {
+                    if (auto hresult_create = device->CreatePixelShader(ps_bytecode->GetBufferPointer(), ps_bytecode->GetBufferSize(), nullptr, &ps); FAILED(hresult_create)) {
+                        return false;
+                    } else {
+                        deviceContext->PSSetShader(ps, nullptr, 0u);
+                    }
+                }
+            }
+		}
+    }
     return true;
 }
 
@@ -422,6 +539,8 @@ void Update(float /*deltaSeconds*/) {
 }
 
 void Render() {
+    float color[] = {0.0f, 0.0f, 0.0f, 1.0f};
+    deviceContext->ClearRenderTargetView(backbuffer, color);
 }
 
 void EndFrame() {
