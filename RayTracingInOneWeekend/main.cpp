@@ -63,7 +63,7 @@ bool CreatePixelShader();
 bool CompilePixelShaderFromFile(ID3DBlob*& ps_bytecode, const std::filesystem::path& path);
 bool CreatePS(ID3DBlob* ps_bytecode);
 bool CreateBlendState();
-void CreateSamplerState();
+bool CreateSamplerState();
 
 void RunMessagePump();
 bool UnRegister();
@@ -259,24 +259,24 @@ bool InitializeDX11(HWND hwnd) {
     std::vector<IDXGIAdapter4*> adapters{};
     {
         IDXGIAdapter4* cur_adapter{};
-        for (unsigned int i = 0u;
-            SUCCEEDED(factory->EnumAdapterByGpuPreference(
-                i,
-                DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
-                __uuidof(IDXGIAdapter4),
-                reinterpret_cast<void**>(&cur_adapter)));
-            ++i) {
-            adapters.push_back(cur_adapter);
-        }
+for (unsigned int i = 0u;
+    SUCCEEDED(factory->EnumAdapterByGpuPreference(
+        i,
+        DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+        __uuidof(IDXGIAdapter4),
+        reinterpret_cast<void**>(&cur_adapter)));
+    ++i) {
+    adapters.push_back(cur_adapter);
+}
 
-        if (adapters.empty()) {
-            if (cur_adapter) {
-                cur_adapter->Release();
-                cur_adapter = nullptr;
-            }
-            ReleaseDXCoreResources();
-            return false;
-        }
+if (adapters.empty()) {
+    if (cur_adapter) {
+        cur_adapter->Release();
+        cur_adapter = nullptr;
+    }
+    ReleaseDXCoreResources();
+    return false;
+}
     }
 
     auto* chosen_adapter = adapters[0];
@@ -359,8 +359,9 @@ bool InitializeDX11(HWND hwnd) {
     if (!CreateBlendState()) {
         return false;
     }
-    CreateSamplerState();
-    
+    if (!CreateSamplerState()) {
+        return false;
+    }
     if (!CreateShaders()) {
         return false;
     }
@@ -390,7 +391,7 @@ bool CreateBlendState() {
     return true;
 }
 
-void CreateSamplerState() {
+bool CreateSamplerState() {
     ID3D11SamplerState* state{};
     D3D11_SAMPLER_DESC desc{};
     desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -406,10 +407,12 @@ void CreateSamplerState() {
     desc.ComparisonFunc = D3D11_COMPARISON_LESS;
     desc.MaxAnisotropy = 0u;
     desc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-    device->CreateSamplerState(&desc, &state);
-
+    if (auto hresult = device->CreateSamplerState(&desc, &state); FAILED(hresult)) {
+        return false;
+    }
     deviceContext->PSSetSamplers(0, 1, &state);
     deviceContext->VSSetSamplers(0, 1, &state);
+    return true;
 }
 
 bool CreateShaders() {
