@@ -51,6 +51,17 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int);
 
 HWND Create();
 bool InitializeDX11(HWND hwnd);
+bool CreateShaders();
+void OutputError(const std::string& msg);
+void OutputShaderCompileErrors(ID3DBlob* errors, const char* msg);
+bool FillBlobFromCache(std::filesystem::path cso_path_canon, ID3DBlob*& blob);
+bool WriteShaderCacheToFile(const std::filesystem::path& path, ID3DBlob* blob);
+bool CompileVertexShaderFromFile(ID3DBlob*& vs_bytecode, const std::filesystem::path& path);
+bool CreateVertexShader();
+bool CreateVS(ID3DBlob*& vs_bytecode);
+bool CreatePixelShader();
+bool CompilePixelShaderFromFile(ID3DBlob*& ps_bytecode, const std::filesystem::path& path);
+bool CreatePS(ID3DBlob* ps_bytecode);
 
 void RunMessagePump();
 bool UnRegister();
@@ -68,7 +79,7 @@ bool isQuitting = false;
 std::chrono::duration<float> GetCurrentTimeElapsed() {
     static auto initial_now = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
-	return (now - initial_now);
+    return (now - initial_now);
 }
 
 int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
@@ -79,10 +90,10 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
                 RunMessagePump();
                 BeginFrame();
 
-				static auto previousFrameTime = GetCurrentTimeElapsed().count();
-				auto currentFrameTime = GetCurrentTimeElapsed().count();
-				auto deltaSeconds = (currentFrameTime - previousFrameTime);
-				previousFrameTime = currentFrameTime;
+                static auto previousFrameTime = GetCurrentTimeElapsed().count();
+                auto currentFrameTime = GetCurrentTimeElapsed().count();
+                auto deltaSeconds = (currentFrameTime - previousFrameTime);
+                previousFrameTime = currentFrameTime;
 
                 Update(deltaSeconds);
                 Render();
@@ -101,19 +112,19 @@ WNDCLASSEX wndcls{};
 LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wParam, _In_ LPARAM lParam);
 
 bool Register() {
-	wndcls.cbSize = sizeof(WNDCLASSEX);
-	auto style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
-	wndcls.style = style;
-	wndcls.lpfnWndProc = WindowProcedure;
-	wndcls.cbClsExtra = 0;
-	wndcls.cbWndExtra = 0;
-	wndcls.hInstance = GetHInstance();
-	wndcls.hIcon = ::LoadIcon(0, IDI_APPLICATION);
-	wndcls.hCursor = ::LoadCursorA(GetHInstance(), IDC_ARROW);
-	wndcls.hbrBackground = (HBRUSH)::GetStockObject(NULL_BRUSH);
-	wndcls.lpszMenuName = nullptr;
-	wndcls.lpszClassName = "SimpleWindowClass";
-	wndcls.hIconSm = ::LoadIcon(0, IDI_APPLICATION);
+    wndcls.cbSize = sizeof(WNDCLASSEX);
+    auto style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+    wndcls.style = style;
+    wndcls.lpfnWndProc = WindowProcedure;
+    wndcls.cbClsExtra = 0;
+    wndcls.cbWndExtra = 0;
+    wndcls.hInstance = GetHInstance();
+    wndcls.hIcon = ::LoadIcon(0, IDI_APPLICATION);
+    wndcls.hCursor = ::LoadCursorA(GetHInstance(), IDC_ARROW);
+    wndcls.hbrBackground = (HBRUSH)::GetStockObject(NULL_BRUSH);
+    wndcls.lpszMenuName = nullptr;
+    wndcls.lpszClassName = "SimpleWindowClass";
+    wndcls.hIconSm = ::LoadIcon(0, IDI_APPLICATION);
     return 0 != ::RegisterClassEx(&wndcls);
 }
 
@@ -157,42 +168,42 @@ ID3D11DeviceContext4* deviceContext{};
 
 bool InitializeDX11(HWND hwnd) {
 
-	//Create DX11 Device
-	ID3D11Device* tempDevice{};
-	ID3D11DeviceContext* tempDeviceContext{};
-	D3D_FEATURE_LEVEL featureLevels[] = {
-		D3D_FEATURE_LEVEL_11_1,
-		D3D_FEATURE_LEVEL_11_0
-	};
-	if (auto hresult = ::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, featureLevels, 2, D3D11_SDK_VERSION, &tempDevice, nullptr, &tempDeviceContext); FAILED(hresult)) {
-		return false;
-	}
+    //Create DX11 Device
+    ID3D11Device* tempDevice{};
+    ID3D11DeviceContext* tempDeviceContext{};
+    D3D_FEATURE_LEVEL featureLevels[] = {
+        D3D_FEATURE_LEVEL_11_1,
+        D3D_FEATURE_LEVEL_11_0
+    };
+    if (auto hresult = ::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, featureLevels, 2, D3D11_SDK_VERSION, &tempDevice, nullptr, &tempDeviceContext); FAILED(hresult)) {
+        return false;
+    }
 
-	if (auto hresult = tempDevice->QueryInterface(__uuidof(ID3D11Device5), reinterpret_cast<void**>(&device)); FAILED(hresult)) {
+    if (auto hresult = tempDevice->QueryInterface(__uuidof(ID3D11Device5), reinterpret_cast<void**>(&device)); FAILED(hresult)) {
         tempDeviceContext->Release();
         tempDeviceContext = nullptr;
-		tempDevice->Release();
-		tempDevice = nullptr;
-		return false;
-	}
-	else {
-		tempDevice->Release();
-		tempDevice = nullptr;
-	}
+        tempDevice->Release();
+        tempDevice = nullptr;
+        return false;
+    }
+    else {
+        tempDevice->Release();
+        tempDevice = nullptr;
+    }
 
-	if (auto hresult = tempDeviceContext->QueryInterface(__uuidof(ID3D11DeviceContext4), reinterpret_cast<void**>(&deviceContext)); FAILED(hresult)) {
-		tempDeviceContext->Release();
-		tempDeviceContext = nullptr;
-		tempDevice->Release();
-		tempDevice = nullptr;
-		return false;
-	}
-	else {
-		tempDeviceContext->Release();
-		tempDeviceContext = nullptr;
-	}
+    if (auto hresult = tempDeviceContext->QueryInterface(__uuidof(ID3D11DeviceContext4), reinterpret_cast<void**>(&deviceContext)); FAILED(hresult)) {
+        tempDeviceContext->Release();
+        tempDeviceContext = nullptr;
+        tempDevice->Release();
+        tempDevice = nullptr;
+        return false;
+    }
+    else {
+        tempDeviceContext->Release();
+        tempDeviceContext = nullptr;
+    }
 
-	//Create DXGI interfaces
+    //Create DXGI interfaces
 
     //Get IDXGI Device
 
@@ -223,11 +234,11 @@ bool InitializeDX11(HWND hwnd) {
     IDXGIAdapter4* adapter{};
     if (auto hresult = dxgiDevice->GetParent(__uuidof(IDXGIAdapter4), reinterpret_cast<void**>(&adapter)); FAILED(hresult)) {
         ReleaseDXCoreResources();
-		return false;
+        return false;
 
     }
 
-	IDXGIFactory4* tempFactory{};
+    IDXGIFactory4* tempFactory{};
     if (auto hresult = adapter->GetParent(__uuidof(IDXGIFactory4), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
         ReleaseDXCoreResources();
     }
@@ -239,88 +250,88 @@ bool InitializeDX11(HWND hwnd) {
         ReleaseDXCoreResources();
         return false;
     }
-	tempFactory->Release();
-	tempFactory = nullptr;
+    tempFactory->Release();
+    tempFactory = nullptr;
 
 
-	std::vector<IDXGIAdapter4*> adapters{};
-	{
-		IDXGIAdapter4* cur_adapter{};
-		for (unsigned int i = 0u;
-			SUCCEEDED(factory->EnumAdapterByGpuPreference(
-				i,
-				DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
-				__uuidof(IDXGIAdapter4),
-				reinterpret_cast<void**>(&cur_adapter)));
-			++i) {
-			adapters.push_back(cur_adapter);
-		}
+    std::vector<IDXGIAdapter4*> adapters{};
+    {
+        IDXGIAdapter4* cur_adapter{};
+        for (unsigned int i = 0u;
+            SUCCEEDED(factory->EnumAdapterByGpuPreference(
+                i,
+                DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+                __uuidof(IDXGIAdapter4),
+                reinterpret_cast<void**>(&cur_adapter)));
+            ++i) {
+            adapters.push_back(cur_adapter);
+        }
 
-		if (adapters.empty()) {
+        if (adapters.empty()) {
             if (cur_adapter) {
                 cur_adapter->Release();
                 cur_adapter = nullptr;
             }
             ReleaseDXCoreResources();
-			return false;
-		}
-	}
+            return false;
+        }
+    }
 
     auto* chosen_adapter = adapters[0];
 
-	std::vector<IDXGIOutput*> outputs;
-	{
-		IDXGIOutput* output;
-		for (int i = 0; DXGI_ERROR_NOT_FOUND != chosen_adapter->EnumOutputs(i, &output); ++i) {
-			outputs.push_back(output);
-		}
-	}
+    std::vector<IDXGIOutput*> outputs;
+    {
+        IDXGIOutput* output;
+        for (int i = 0; DXGI_ERROR_NOT_FOUND != chosen_adapter->EnumOutputs(i, &output); ++i) {
+            outputs.push_back(output);
+        }
+    }
 
-	//Create Swapchain
+    //Create Swapchain
     IDXGISwapChain4* swapchain4{};
 
-	auto ReleaseDXGlobalResources = [&]() {
-		factory->Release();
-		factory = nullptr;
-		ReleaseDXCoreResources();
-	};
+    auto ReleaseDXGlobalResources = [&]() {
+        factory->Release();
+        factory = nullptr;
+        ReleaseDXCoreResources();
+    };
 
-	{
-		DXGI_SWAP_CHAIN_DESC1 desc{};
-		desc.Width = 0;
-		desc.Height = 0;
-		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		desc.Stereo = FALSE;
-		desc.SampleDesc.Count = 1;
-		desc.SampleDesc.Quality = 0;
-		desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		desc.BufferCount = 2;
-		desc.Scaling = DXGI_SCALING_STRETCH;
-		desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-		desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-		desc.Flags = 0;
+    {
+        DXGI_SWAP_CHAIN_DESC1 desc{};
+        desc.Width = 0;
+        desc.Height = 0;
+        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        desc.Stereo = FALSE;
+        desc.SampleDesc.Count = 1;
+        desc.SampleDesc.Quality = 0;
+        desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        desc.BufferCount = 2;
+        desc.Scaling = DXGI_SCALING_STRETCH;
+        desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+        desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+        desc.Flags = 0;
 
-		IDXGISwapChain1* swapchain1{};
-		if (auto hresult = factory->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
-			ReleaseDXGlobalResources();
-			return false;
-		}
+        IDXGISwapChain1* swapchain1{};
+        if (auto hresult = factory->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
+            ReleaseDXGlobalResources();
+            return false;
+        }
 
-		if (auto hresult = swapchain1->QueryInterface(__uuidof(IDXGISwapChain4), reinterpret_cast<void**>(&swapchain4)); FAILED(hresult)) {
-			swapchain1->Release();
-			swapchain1 = nullptr;
-			ReleaseDXGlobalResources();
-		}
-		swapchain1->Release();
-		swapchain1 = nullptr;
-	}
+        if (auto hresult = swapchain1->QueryInterface(__uuidof(IDXGISwapChain4), reinterpret_cast<void**>(&swapchain4)); FAILED(hresult)) {
+            swapchain1->Release();
+            swapchain1 = nullptr;
+            ReleaseDXGlobalResources();
+        }
+        swapchain1->Release();
+        swapchain1 = nullptr;
+    }
 
 
-	auto ReleaseDXSwapChainAndGlobalResources = [&]() {
-		swapchain4->Release();
-		swapchain4 = nullptr;
-		ReleaseDXGlobalResources();
-	};
+    auto ReleaseDXSwapChainAndGlobalResources = [&]() {
+        swapchain4->Release();
+        swapchain4 = nullptr;
+        ReleaseDXGlobalResources();
+    };
 
     // Create Backbuffer
     ID3D11Texture2D* tBackbuffer{};
@@ -383,139 +394,222 @@ bool InitializeDX11(HWND hwnd) {
     }
     deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
     
-	//Create Shader
-    {
-        unsigned int hlsl_flags{0u};
+    if (!CreateShaders()) {
+        return false;
+    }
+
+    return true;
+}
+
+bool CreateShaders() {
+    const auto vs_created = CreateVertexShader();
+    const auto ps_created = CreatePixelShader();
+    if (!(vs_created && ps_created)) {
+        return false;
+    }
+    return true;
+}
+
+bool CreateVertexShader() {
+    ID3DBlob* vs_bytecode{ nullptr };
+    auto cso_path = std::filesystem::path{ "vs.cso" };
+    auto hlsl_path = std::filesystem::path{ "vs.hlsl" };
+    std::error_code cso_ec{};
+    const auto cso_exists = std::filesystem::exists(cso_path);
+    const auto hlsl_exists = std::filesystem::exists(hlsl_path);
+    const auto cso_needs_recompile = !cso_exists || (cso_exists && hlsl_exists && std::filesystem::last_write_time(cso_path) < std::filesystem::last_write_time(hlsl_path));
+    if (std::filesystem::path cso_path_canon = std::filesystem::canonical(cso_path, cso_ec); !cso_needs_recompile && !cso_ec) {
+        cso_path_canon.make_preferred();
+        if (!FillBlobFromCache(cso_path_canon, vs_bytecode)) {
+            return false;
+        }
+    } else {
+        std::error_code hlsl_ec{};
+        if (std::filesystem::path hlsl_path_canon = std::filesystem::canonical(hlsl_path, hlsl_ec); hlsl_ec) {
+            OutputError(hlsl_path.string() + " could not be accessed. Reason: " + hlsl_ec.message() + '\n');
+            return false;
+        } else {
+            hlsl_path_canon.make_preferred();
+            if (CompileVertexShaderFromFile(vs_bytecode, hlsl_path_canon) && !WriteShaderCacheToFile(hlsl_path_canon, vs_bytecode)) {
+                return false;
+            }
+        }
+    }
+    if (!CreateVS(vs_bytecode)) {
+        return false;
+    }
+    return true;
+}
+
+bool CreatePixelShader() {
+    ID3DBlob* ps_bytecode{ nullptr };
+    auto hlsl_path = std::filesystem::path{ "ps.hlsl" };
+    auto cso_path = std::filesystem::path{ "ps.cso" };
+    std::error_code cso_ec{};
+    const auto cso_exists = std::filesystem::exists(cso_path);
+    const auto hlsl_exists = std::filesystem::exists(hlsl_path);
+    const auto cso_needs_recompile = !cso_exists || (cso_exists && hlsl_exists && std::filesystem::last_write_time(cso_path) < std::filesystem::last_write_time(hlsl_path));
+    if (std::filesystem::path cso_path_canon = std::filesystem::canonical(cso_path, cso_ec); !cso_needs_recompile && !cso_ec) {
+        cso_path_canon.make_preferred();
+        if (!FillBlobFromCache(cso_path_canon, ps_bytecode)) {
+            return false;
+        }
+    }
+    else {
+        std::error_code hlsl_ec{};
+        if (std::filesystem::path hlsl_path_canon = std::filesystem::canonical(hlsl_path, hlsl_ec); hlsl_ec) {
+            OutputError(hlsl_path.string() + " could not be accessed. Reason: " + hlsl_ec.message() + '\n');
+            return false;
+        } else {
+            hlsl_path_canon.make_preferred();
+            if (CompilePixelShaderFromFile(ps_bytecode, hlsl_path_canon) && !WriteShaderCacheToFile(hlsl_path_canon, ps_bytecode)) {
+                return false;
+            }
+        }
+    }
+    if (!CreatePS(ps_bytecode)) {
+        return false;
+    }
+    return true;
+}
+
+void OutputError(const std::string& msg) {
+#ifdef _MSC_VER
+    ::OutputDebugStringA(msg.c_str());
+#else
+    std::cout << err_str;
+#endif
+}
+
+void OutputShaderCompileErrors(ID3DBlob* errors, const char* msg) {
+    ::MessageBoxA(nullptr, msg, "D3DCompile Failed", MB_OK);
+    if (errors) {
+        OutputError(reinterpret_cast<char*>(errors->GetBufferPointer()));
+        errors->Release();
+        errors = nullptr;
+    }
+}
+
+bool FillBlobFromCache(std::filesystem::path cso_path_canon, ID3DBlob*& blob) {
+    const auto size = std::filesystem::file_size(cso_path_canon);
+    std::vector<uint8_t> buffer{};
+    buffer.resize(size);
+    if (std::ifstream ifs{ cso_path_canon, std::ios_base::binary }; ifs.read(reinterpret_cast<char*>(buffer.data()), buffer.size())) {
+        if (auto hresult_blob = ::D3DCreateBlob(size, &blob); FAILED(hresult_blob)) {
+            OutputError("Blob creation failed.\n");
+            return false;
+        } else {
+            std::memcpy(blob->GetBufferPointer(), buffer.data(), buffer.size());
+        }
+    }
+    return true;
+}
+
+bool CompileVertexShaderFromFile(ID3DBlob*& vs_bytecode, const std::filesystem::path& path) {
+    ID3DBlob* errors{ nullptr };
+
+    unsigned int hlsl_flags{ 0u };
 #ifdef _DEBUG
-        hlsl_flags |= D3DCOMPILE_SKIP_OPTIMIZATION;
+    hlsl_flags |= D3DCOMPILE_SKIP_OPTIMIZATION;
 #else
-        hlsl_flags |= D3DCOMPILE_SKIP_VALIDATION;
-        hlsl_flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
+    hlsl_flags |= D3DCOMPILE_SKIP_VALIDATION;
+    hlsl_flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
 #endif
-        hlsl_flags |= D3DCOMPILE_WARNINGS_ARE_ERRORS;
-        hlsl_flags |= D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR;
-        hlsl_flags |= D3DCOMPILE_ALL_RESOURCES_BOUND;
-        unsigned int fx_flags{0u};
+    hlsl_flags |= D3DCOMPILE_WARNINGS_ARE_ERRORS;
+    hlsl_flags |= D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR;
+    hlsl_flags |= D3DCOMPILE_ALL_RESOURCES_BOUND;
+    unsigned int fx_flags{ 0u };
 
-		//Create Vertex Shader
-		{
-			ID3DBlob* vs_bytecode{ nullptr };
-			ID3DBlob* errors{ nullptr };
-			auto path = std::filesystem::path{ "vs.hlsl" };
-            std::error_code ec{};
-            if (std::filesystem::path path_canon = std::filesystem::canonical(path, ec); ec) {
-#ifdef _MSC_VER
-                ::OutputDebugStringA(std::string{path.string() + " could not be accessed. Reason: " + ec.message() + '\n'}.c_str());
-#else
-                std::cout << err_str;
-#endif
-                return false;
-            } else {
-                path.make_preferred();
-                if (auto hresult_compile = ::D3DCompileFromFile(path_canon.wstring().c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_0", hlsl_flags, fx_flags, &vs_bytecode, &errors); FAILED(hresult_compile)) {
-                    ::MessageBoxA(nullptr, "Vertex Shader failed to compile. See Output Window for details.", "D3DCompile Failed", MB_OK);
-                    if (errors) {
-                        std::string err_str(reinterpret_cast<char*>(errors->GetBufferPointer()));
-#ifdef _MSC_VER
-						::OutputDebugStringA(err_str.c_str());
-#else
-                        std::cout << err_str;
-#endif
-                        errors->Release();
-                        errors = nullptr;
-                    }
-                    return false;
-                } else {
-                    if (auto hresult_create = device->CreateVertexShader(vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), nullptr, &vs); FAILED(hresult_create)) {
-						std::string err_str("FAILED TO CREATE VERTEX SHADER\n");
-#ifdef _MSC_VER
-						::OutputDebugStringA(err_str.c_str());
-#else
-						std::cout << err_str;
-#endif
-                        return false;
-                    } else {
-                        const std::array desc = {
-                            D3D11_INPUT_ELEMENT_DESC{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-                            D3D11_INPUT_ELEMENT_DESC{"COLOR"   , 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-                            D3D11_INPUT_ELEMENT_DESC{"TEXCOORD", 2, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-                        };
-                        ID3D11InputLayout* il{};
-                        if (auto hresult_input = device->CreateInputLayout(desc.data(), static_cast<unsigned int>(desc.size()), vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), &il); FAILED(hresult_input)) {
-							std::string err_str("FAILED TO CREATE INPUT LAYOUT\n");
-#ifdef _MSC_VER
-							::OutputDebugStringA(err_str.c_str());
-#else
-							std::cout << err_str;
-#endif
-                            return false;
-                        } else {
-                            deviceContext->IASetInputLayout(il);
-                            //TODO (casey): Create Vertex Buffer? Look in to VertexID since the vertex buffer doesn't do much here.
-                            ID3D11Buffer* vBuffer{ nullptr };
-                            deviceContext->IASetVertexBuffers(0u, 1u, &vBuffer, nullptr, nullptr);
-                            deviceContext->VSSetShader(vs, nullptr, 0u);
-                        }
-                    }
-                }
-            }
-		}
+    if (auto hresult_compile = ::D3DCompileFromFile(path.wstring().c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_0", hlsl_flags, fx_flags, &vs_bytecode, &errors); FAILED(hresult_compile)) {
+        OutputShaderCompileErrors(errors, "Vertex Shader failed to compile. See Output Window for details.");
+        return false;
+    }
+    return true;
+}
 
-        //Create Pixel Shader
-		{
-			ID3DBlob* ps_bytecode{ nullptr };
-			ID3DBlob* errors{ nullptr };
-			auto path = std::filesystem::path{ "ps.hlsl" };
-            std::error_code ec{};
-			if (std::filesystem::path path_canon = std::filesystem::canonical(path, ec); ec) {
-#ifdef _MSC_VER
-				::OutputDebugStringA(std::string{ path.string() + " could not be accessed. Reason: " + ec.message() + '\n' }.c_str());
+bool CompilePixelShaderFromFile(ID3DBlob*& ps_bytecode, const std::filesystem::path& path) {
+    ID3DBlob* errors{ nullptr };
+    unsigned int hlsl_flags{ 0u };
+#ifdef _DEBUG
+    hlsl_flags |= D3DCOMPILE_SKIP_OPTIMIZATION;
 #else
-                std::cout << err_str;
+    hlsl_flags |= D3DCOMPILE_SKIP_VALIDATION;
+    hlsl_flags |= D3DCOMPILE_OPTIMIZATION_LEVEL3;
 #endif
-                return false;
-			} else {
-                if (auto hresult_compile = ::D3DCompileFromFile(path_canon.wstring().c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_0", hlsl_flags, fx_flags, &ps_bytecode, &errors); FAILED(hresult_compile)) {
-                    ::MessageBoxA(nullptr, "Pixel Shader failed to compile. See Output Window for details.", "D3DCompile Failed", MB_OK);
-                    if (errors) {
-                        std::string err_str(reinterpret_cast<char*>(errors->GetBufferPointer()));
-#ifdef _MSC_VER
-                        ::OutputDebugStringA(err_str.c_str());
-#else
-                        std::cout << err_str;
-#endif
-                        errors->Release();
-                        errors = nullptr;
-                    }
-                    return false;
-                } else {
-                    if (auto hresult_create = device->CreatePixelShader(ps_bytecode->GetBufferPointer(), ps_bytecode->GetBufferSize(), nullptr, &ps); FAILED(hresult_create)) {
-                        return false;
-                    } else {
-                        deviceContext->PSSetShader(ps, nullptr, 0u);
-                    }
-                }
-            }
-		}
+    hlsl_flags |= D3DCOMPILE_WARNINGS_ARE_ERRORS;
+    hlsl_flags |= D3DCOMPILE_PACK_MATRIX_COLUMN_MAJOR;
+    hlsl_flags |= D3DCOMPILE_ALL_RESOURCES_BOUND;
+    unsigned int fx_flags{ 0u };
+
+    if (auto hresult_compile = ::D3DCompileFromFile(path.wstring().c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_0", hlsl_flags, fx_flags, &ps_bytecode, &errors); FAILED(hresult_compile)) {
+        OutputShaderCompileErrors(errors, "Pixel Shader failed to compile. See Output Window for details.");
+        return false;
+    }
+    return true;
+}
+
+bool WriteShaderCacheToFile(const std::filesystem::path& path, ID3DBlob* blob) {
+    auto cso_path = path;
+    cso_path.replace_extension(".cso");
+    cso_path.make_preferred();
+    if (std::ofstream ofs{ cso_path, std::ios_base::binary }; !ofs.write(reinterpret_cast<const char*>(blob->GetBufferPointer()), blob->GetBufferSize())) {
+        OutputError(std::string{ "Could not write shader cache to " } + cso_path.string() + '\n');
+        return false;
+    }
+    return true;
+}
+
+bool CreateVS(ID3DBlob*& vs_bytecode) {
+    if (auto hresult_create = device->CreateVertexShader(vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), nullptr, &vs); FAILED(hresult_create)) {
+        OutputError("FAILED TO CREATE VERTEX SHADER\n");
+        return false;
+    } else {
+        const std::array desc = {
+            D3D11_INPUT_ELEMENT_DESC{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            D3D11_INPUT_ELEMENT_DESC{"COLOR"   , 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            D3D11_INPUT_ELEMENT_DESC{"TEXCOORD", 2, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        };
+        ID3D11InputLayout* il{};
+        //TODO (casey): CreateInputLayout call is invalid after refactor...
+        if (auto hresult_input = device->CreateInputLayout(desc.data(), static_cast<unsigned int>(desc.size()), vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), &il); FAILED(hresult_input)) {
+            OutputError("FAILED TO CREATE INPUT LAYOUT\n");
+            return false;
+        }
+        else {
+            deviceContext->IASetInputLayout(il);
+            //TODO (casey): Create Vertex Buffer? Look in to VertexID since the vertex buffer doesn't do much here.
+            ID3D11Buffer* vBuffer{ nullptr };
+            deviceContext->IASetVertexBuffers(0u, 1u, &vBuffer, nullptr, nullptr);
+            deviceContext->VSSetShader(vs, nullptr, 0u);
+        }
+    }
+    return true;
+}
+
+bool CreatePS(ID3DBlob* ps_bytecode) {
+    if (auto hresult_create = device->CreatePixelShader(ps_bytecode->GetBufferPointer(), ps_bytecode->GetBufferSize(), nullptr, &ps); FAILED(hresult_create)) {
+        return false;
+    } else {
+        deviceContext->PSSetShader(ps, nullptr, 0u);
     }
     return true;
 }
 
 void RunMessagePump() {
 
-	MSG msg{};
-	for (;;) {
-		const BOOL hasMsg = ::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
-		if (!hasMsg) {
-			break;
-		}
-		::TranslateMessage(&msg);
-		::DispatchMessage(&msg);
-	}
+    MSG msg{};
+    for (;;) {
+        const BOOL hasMsg = ::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
+        if (!hasMsg) {
+            break;
+        }
+        ::TranslateMessage(&msg);
+        ::DispatchMessage(&msg);
+    }
 }
 
 bool UnRegister() {
-	return 0 != ::UnregisterClass(wndcls.lpszClassName, nullptr);
+    return 0 != ::UnregisterClass(wndcls.lpszClassName, nullptr);
 }
 
 LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wParam, _In_ LPARAM lParam) {
@@ -690,3 +784,4 @@ HittableList random_scene() {
 
     return world;
 }
+
