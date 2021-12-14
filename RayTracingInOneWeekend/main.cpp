@@ -62,7 +62,7 @@ bool CreateVS(ID3DBlob*& vs_bytecode);
 bool CreatePixelShader();
 bool CompilePixelShaderFromFile(ID3DBlob*& ps_bytecode, const std::filesystem::path& path);
 bool CreatePS(ID3DBlob* ps_bytecode);
-void CreateBlendState();
+bool CreateBlendState();
 void CreateSamplerState();
 
 void RunMessagePump();
@@ -356,9 +356,10 @@ bool InitializeDX11(HWND hwnd) {
 
     deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
 
-    CreateBlendState();
+    if (!CreateBlendState()) {
+        return false;
+    }
     CreateSamplerState();
-
     
     if (!CreateShaders()) {
         return false;
@@ -367,7 +368,7 @@ bool InitializeDX11(HWND hwnd) {
     return true;
 }
 
-void CreateBlendState() {
+bool CreateBlendState() {
     ID3D11BlendState* state{};
     D3D11_BLEND_DESC desc{};
     desc.AlphaToCoverageEnable = false;
@@ -381,9 +382,12 @@ void CreateBlendState() {
     brt.DestBlendAlpha = D3D11_BLEND_ZERO;
     brt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
     brt.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-    device->CreateBlendState(&desc, &state);
+    if (auto hresult = device->CreateBlendState(&desc, &state); FAILED(hresult)) {
+        return false;
+    }
     float factor[] = { 1.0f, 1.0f, 1.0f, 1.f };
     deviceContext->OMSetBlendState(state, factor, 0xffffffffu);
+    return true;
 }
 
 void CreateSamplerState() {
