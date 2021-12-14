@@ -349,9 +349,10 @@ bool InitializeDX11(HWND hwnd) {
     if (FAILED(device->CreateRenderTargetView(tBackbuffer, nullptr, &backbuffer))) {
         ReleaseDXResources();
     }
-
     tBackbuffer->Release();
     tBackbuffer = nullptr;
+
+    deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
 
     {
         ID3D11BlendState* state{};
@@ -392,7 +393,6 @@ bool InitializeDX11(HWND hwnd) {
         deviceContext->PSSetSamplers(0, 1, &state);
         deviceContext->VSSetSamplers(0, 1, &state);
     }
-    deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
     
     if (!CreateShaders()) {
         return false;
