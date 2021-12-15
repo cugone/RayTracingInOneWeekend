@@ -719,6 +719,8 @@ void EndFrame() {
         case DXGI_ERROR_DEVICE_RESET: {
             ReleaseGlobalDXResources();
             ::MessageBoxA(g_hWnd, "Your GPU Device has been lost. Please restart the application.", "Graphics Device Lost", MB_OK);
+            g_isQuitting = true;
+            break;
         }
         default:
             ReleaseGlobalDXResources();
