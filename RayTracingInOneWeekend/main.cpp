@@ -711,11 +711,17 @@ void BeginFrame() {
 }
 
 void Update(float /*deltaSeconds*/) {
+
 }
 
 void Render() {
     float color[] = {0.0f, 0.0f, 0.0f, 1.0f};
     deviceContext->ClearRenderTargetView(backbuffer, color);
+    //TODO(casey): Implement SetVertexBuffers
+    //const unsigned int offset{ 0u };
+    //const unsigned int stride = sizeof(Vector3);
+    //deviceContext->IASetVertexBuffers(0, 1, &vbuffer, &stride, &offset);
+    //deviceContext->Draw(3u, 0u);
 }
 
 void EndFrame() {
