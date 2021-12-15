@@ -156,7 +156,7 @@ HWND Create() {
         if (::AdjustWindowRect(&rect, windowStyle, false)) {
             const auto width = rect.right - rect.left;
             const auto height = rect.bottom - rect.top;
-            if (auto hwnd = ::CreateWindowA("SimpleWindowClass", "Raytracing in One Weekend", windowStyle, CW_USEDEFAULT, CW_USEDEFAULT, width, height, nullptr, nullptr, GetHInstance(), nullptr); hwnd) {
+            if (auto hwnd = ::CreateWindowA("SimpleWindowClass", "Raytracing in One Weekend - Pixel Shader", windowStyle, CW_USEDEFAULT, CW_USEDEFAULT, width, height, nullptr, nullptr, GetHInstance(), nullptr); hwnd) {
                 hdc = ::GetDCEx(hwnd, nullptr, 0);
                 ::ShowWindow(hwnd, SW_SHOW);
                 return hwnd;
