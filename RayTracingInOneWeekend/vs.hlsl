@@ -7,7 +7,7 @@ struct ps_input {
 struct vs_input {
 	float3 pos : POSITION;
 	float4 color : COLOR;
-	float2 uv : TEXCOORD;
+	float2 uv : UV;
 };
 
 ps_input main(vs_input input) {

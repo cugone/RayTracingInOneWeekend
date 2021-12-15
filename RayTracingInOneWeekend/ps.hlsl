@@ -23,6 +23,6 @@ cbuffer object_constants : register(b2) {
 	float4x4 gModelMatrix;
 };
 
-float4 main(ps_input input) : SV_TARGET {
+float4 main(ps_input input) : SV_TARGET{
 	return input.color;
 }

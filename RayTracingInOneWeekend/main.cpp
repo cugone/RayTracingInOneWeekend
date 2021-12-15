@@ -51,6 +51,7 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int);
 
 HWND Create();
 bool InitializeDX11(HWND hwnd);
+void ReleaseGlobalDXResources();
 bool CreateShaders();
 void OutputError(const std::string& msg);
 void OutputShaderCompileErrors(ID3DBlob* errors, const char* msg);
@@ -74,7 +75,7 @@ void Update(float deltaSeconds);
 void Render();
 void EndFrame();
 
-bool isQuitting = false;
+bool g_isQuitting = false;
 
 #define GetHInstance() ::GetModuleHandleA(nullptr)
 
@@ -84,11 +85,13 @@ std::chrono::duration<float> GetCurrentTimeElapsed() {
     return (now - initial_now);
 }
 
+HWND g_hWnd{};
+
 int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
 
-    if (auto hwnd = Create(); hwnd) {
-        if(InitializeDX11(hwnd)) {
-            while (!isQuitting) {
+    if (g_hWnd = Create(); g_hWnd) {
+        if(InitializeDX11(g_hWnd)) {
+            while (!g_isQuitting) {
                 RunMessagePump();
                 BeginFrame();
 
@@ -101,6 +104,7 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
                 Render();
                 EndFrame();
             }
+            ReleaseGlobalDXResources();
         }
         UnRegister();
     }
@@ -162,142 +166,173 @@ HWND Create() {
     return 0;
 }
 
+IDXGIFactory7* factory{};
+std::vector<IDXGIAdapter4*> adapters{};
+IDXGIAdapter4* adapter{};
+std::vector<IDXGIOutput*> outputs{};
+ID3D11Device5* device{};
+ID3D11DeviceContext4* deviceContext{};
+IDXGIDevice4* dxgiDevice{};
+IDXGISwapChain4* swapchain4{};
 ID3D11RenderTargetView* backbuffer{};
 ID3D11VertexShader* vs{};
 ID3D11PixelShader* ps{};
-ID3D11Device5* device{};
-ID3D11DeviceContext4* deviceContext{};
+D3D_FEATURE_LEVEL highest_feature_level;
+
+#define SAFE_RELEASE(x) { \
+    if(x) { \
+        x->Release(); \
+        x = nullptr; \
+    } \
+} \
+
+void ReleaseGlobalDXResources() {
+    SAFE_RELEASE(ps);
+    SAFE_RELEASE(vs);
+    SAFE_RELEASE(backbuffer);
+    SAFE_RELEASE(swapchain4);
+    SAFE_RELEASE(deviceContext);
+    SAFE_RELEASE(device);
+    SAFE_RELEASE(dxgiDevice);
+
+    for (auto& o : outputs) {
+        SAFE_RELEASE(o);
+    }
+    outputs.clear();
+    outputs.shrink_to_fit();
+
+    for (auto& a : adapters) {
+        SAFE_RELEASE(a);
+    }
+    adapter = nullptr;
+    adapters.clear();
+    adapters.shrink_to_fit();
+
+    SAFE_RELEASE(factory);
+
+}
 
 bool InitializeDX11(HWND hwnd) {
-
-    //Create DX11 Device
-    ID3D11Device* tempDevice{};
-    ID3D11DeviceContext* tempDeviceContext{};
-    D3D_FEATURE_LEVEL featureLevels[] = {
-        D3D_FEATURE_LEVEL_11_1,
-        D3D_FEATURE_LEVEL_11_0
-    };
-    if (auto hresult = ::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, featureLevels, 2, D3D11_SDK_VERSION, &tempDevice, nullptr, &tempDeviceContext); FAILED(hresult)) {
-        return false;
+    {
+        IDXGIFactory2* tempFactory{};
+#ifdef _DEBUG
+        if (auto hresult = ::CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, __uuidof(IDXGIFactory2), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
+#else
+        if (auto hresult = ::CreateDXGIFactory2(0, __uuidof(IDXGIFactory2), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
+#endif
+            return false;
+        }
+        if (auto hresult = tempFactory->QueryInterface(__uuidof(IDXGIFactory7), reinterpret_cast<void**>(&factory)); FAILED(hresult)) {
+            SAFE_RELEASE(tempFactory);
+            return false;
+        }
+        SAFE_RELEASE(tempFactory);
     }
-
-    if (auto hresult = tempDevice->QueryInterface(__uuidof(ID3D11Device5), reinterpret_cast<void**>(&device)); FAILED(hresult)) {
-        tempDeviceContext->Release();
-        tempDeviceContext = nullptr;
-        tempDevice->Release();
-        tempDevice = nullptr;
-        return false;
-    }
-    else {
-        tempDevice->Release();
-        tempDevice = nullptr;
-    }
-
-    if (auto hresult = tempDeviceContext->QueryInterface(__uuidof(ID3D11DeviceContext4), reinterpret_cast<void**>(&deviceContext)); FAILED(hresult)) {
-        tempDeviceContext->Release();
-        tempDeviceContext = nullptr;
-        tempDevice->Release();
-        tempDevice = nullptr;
-        return false;
-    }
-    else {
-        tempDeviceContext->Release();
-        tempDeviceContext = nullptr;
-    }
-
-    //Create DXGI interfaces
-
-    //Get IDXGI Device
-
-    auto ReleaseDeviceAndContext = [&]() {
-        device->Release();
-        device = nullptr;
-        deviceContext->Release();
-        deviceContext = nullptr;
-    };
-
-    IDXGIDevice4* dxgiDevice{};
-    if (auto hresult = device->QueryInterface(__uuidof(IDXGIDevice4), reinterpret_cast<void**>(&dxgiDevice)); FAILED(hresult)) {
-        ReleaseDeviceAndContext();
-        return false;
-    }
-
-    auto ReleaseDxgiDevice = [&]() {
-        dxgiDevice->Release();
-        dxgiDevice = nullptr;
-    };
-
-    auto ReleaseDXCoreResources = [&]() {
-        ReleaseDxgiDevice();
-        ReleaseDeviceAndContext();
-    };
 
     //Get Adapter
-    IDXGIAdapter4* adapter{};
-    if (auto hresult = dxgiDevice->GetParent(__uuidof(IDXGIAdapter4), reinterpret_cast<void**>(&adapter)); FAILED(hresult)) {
-        ReleaseDXCoreResources();
-        return false;
-
-    }
-
-    IDXGIFactory4* tempFactory{};
-    if (auto hresult = adapter->GetParent(__uuidof(IDXGIFactory4), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
-        ReleaseDXCoreResources();
-    }
-
-    IDXGIFactory7* factory{};
-    if(auto hresult = tempFactory->QueryInterface(__uuidof(IDXGIFactory7), reinterpret_cast<void**>(&factory)); FAILED(hresult)) {
-        tempFactory->Release();
-        tempFactory = nullptr;
-        ReleaseDXCoreResources();
-        return false;
-    }
-    tempFactory->Release();
-    tempFactory = nullptr;
-
-
-    std::vector<IDXGIAdapter4*> adapters{};
     {
         IDXGIAdapter4* cur_adapter{};
-for (unsigned int i = 0u;
-    SUCCEEDED(factory->EnumAdapterByGpuPreference(
-        i,
-        DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
-        __uuidof(IDXGIAdapter4),
-        reinterpret_cast<void**>(&cur_adapter)));
-    ++i) {
-    adapters.push_back(cur_adapter);
-}
+        for (unsigned int i = 0u;
+            SUCCEEDED(factory->EnumAdapterByGpuPreference(
+                i,
+                DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+                __uuidof(IDXGIAdapter4),
+                reinterpret_cast<void**>(&cur_adapter)));
+            ++i)
+        {
+            adapters.push_back(cur_adapter);
+        }
 
-if (adapters.empty()) {
-    if (cur_adapter) {
-        cur_adapter->Release();
-        cur_adapter = nullptr;
-    }
-    ReleaseDXCoreResources();
-    return false;
-}
+        if (adapters.empty()) {
+            ReleaseGlobalDXResources();
+            return false;
+        }
     }
 
-    auto* chosen_adapter = adapters[0];
-
-    std::vector<IDXGIOutput*> outputs;
+    adapter = adapters[0];
     {
-        IDXGIOutput* output;
-        for (int i = 0; DXGI_ERROR_NOT_FOUND != chosen_adapter->EnumOutputs(i, &output); ++i) {
+        IDXGIOutput* output{};
+        for (int i = 0; DXGI_ERROR_NOT_FOUND != adapter->EnumOutputs(i, &output); ++i) {
             outputs.push_back(output);
         }
     }
 
+    //Create DX11 Device
+    {
+        ID3D11Device* tempDevice{};
+        ID3D11DeviceContext* tempDeviceContext{};
+
+        const auto ReleaseTemporaryDXResources = [&]() {
+            SAFE_RELEASE(tempDeviceContext);
+            SAFE_RELEASE(tempDevice);
+        };
+
+        std::array featureLevels = {
+            //D3D_FEATURE_LEVEL_12_2,
+            //D3D_FEATURE_LEVEL_12_1,
+            //D3D_FEATURE_LEVEL_12_0,
+            D3D_FEATURE_LEVEL_11_1,
+            D3D_FEATURE_LEVEL_11_0,
+            D3D_FEATURE_LEVEL_10_1,
+            D3D_FEATURE_LEVEL_10_0,
+            D3D_FEATURE_LEVEL_9_3,
+            D3D_FEATURE_LEVEL_9_2,
+            D3D_FEATURE_LEVEL_9_1,
+        };
+        {
+            unsigned int flags{0u};
+#ifdef _DEBUG
+            flags |= D3D11_CREATE_DEVICE_DEBUG;
+            //flags |= D3D11_CREATE_DEVICE_DEBUGGABLE;
+#else
+            flags |= D3D11_CREATE_DEVICE_PREVENT_ALTERING_LAYER_SETTINGS_FROM_REGISTRY;
+#endif
+            flags |= D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+            {
+                DXGI_ADAPTER_DESC3 adapterDesc{};
+                adapter->GetDesc3(&adapterDesc);
+                if(adapterDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE) {
+                    ::OutputDebugStringA("D3D11 Device creation failed. Software Devices are not supported.");
+                    ReleaseGlobalDXResources();
+                    return false;
+                }
+            }
+            if (auto hresult = ::D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, featureLevels.data(), static_cast<unsigned int>(featureLevels.size()), D3D11_SDK_VERSION, &tempDevice, &highest_feature_level, &tempDeviceContext); FAILED(hresult)) {
+                ::OutputDebugStringA("D3D11 Device creation failed. Minimum feature set is not supported.");
+                ReleaseGlobalDXResources();
+                return false;
+            }
+            if (!(highest_feature_level >= D3D_FEATURE_LEVEL_11_0)) {
+                ::OutputDebugStringA("Your graphics card does not support at least DirectX 11.0. Please update your drivers or hardware.");
+                ReleaseGlobalDXResources();
+                return false;
+            }
+        }
+
+        if (auto hresult = tempDevice->QueryInterface(__uuidof(ID3D11Device5), reinterpret_cast<void**>(&device)); FAILED(hresult)) {
+            ReleaseTemporaryDXResources();
+            return false;
+        } else {
+            SAFE_RELEASE(tempDevice);
+        }
+
+        if (auto hresult = tempDeviceContext->QueryInterface(__uuidof(ID3D11DeviceContext4), reinterpret_cast<void**>(&deviceContext)); FAILED(hresult)) {
+            ReleaseTemporaryDXResources();
+            return false;
+        } else {
+            SAFE_RELEASE(tempDeviceContext);
+        }
+    }
+    //Create DXGI interfaces
+
+    //Get IDXGI Device
+
+    if (auto hresult = device->QueryInterface(__uuidof(IDXGIDevice4), reinterpret_cast<void**>(&dxgiDevice)); FAILED(hresult)) {
+        ReleaseGlobalDXResources();
+        return false;
+    }
+
     //Create Swapchain
-    IDXGISwapChain4* swapchain4{};
-
-    auto ReleaseDXGlobalResources = [&]() {
-        factory->Release();
-        factory = nullptr;
-        ReleaseDXCoreResources();
-    };
-
     {
         DXGI_SWAP_CHAIN_DESC1 desc{};
         desc.Width = 0;
@@ -309,50 +344,36 @@ if (adapters.empty()) {
         desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         desc.BufferCount = 2;
         desc.Scaling = DXGI_SCALING_STRETCH;
-        desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+        desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
         desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-        desc.Flags = 0;
+        desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
 
         IDXGISwapChain1* swapchain1{};
         if (auto hresult = factory->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
-            ReleaseDXGlobalResources();
+            ReleaseGlobalDXResources();
             return false;
         }
 
         if (auto hresult = swapchain1->QueryInterface(__uuidof(IDXGISwapChain4), reinterpret_cast<void**>(&swapchain4)); FAILED(hresult)) {
-            swapchain1->Release();
-            swapchain1 = nullptr;
-            ReleaseDXGlobalResources();
+            SAFE_RELEASE(swapchain1);
+            ReleaseGlobalDXResources();
         }
-        swapchain1->Release();
-        swapchain1 = nullptr;
+        SAFE_RELEASE(swapchain1);
     }
-
-
-    auto ReleaseDXSwapChainAndGlobalResources = [&]() {
-        swapchain4->Release();
-        swapchain4 = nullptr;
-        ReleaseDXGlobalResources();
-    };
 
     // Create Backbuffer
     ID3D11Texture2D* tBackbuffer{};
     if (FAILED(swapchain4->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&tBackbuffer)))) {
-        ReleaseDXSwapChainAndGlobalResources();
+        ReleaseGlobalDXResources();
         return false;
     }
 
-    auto ReleaseDXResources = [&]() {
-        tBackbuffer->Release();
-        tBackbuffer = nullptr;
-        ReleaseDXSwapChainAndGlobalResources();
-    };
-
     if (FAILED(device->CreateRenderTargetView(tBackbuffer, nullptr, &backbuffer))) {
-        ReleaseDXResources();
+        SAFE_RELEASE(tBackbuffer);
+        ReleaseGlobalDXResources();
+        return false;
     }
-    tBackbuffer->Release();
-    tBackbuffer = nullptr;
+    SAFE_RELEASE(tBackbuffer);
 
     deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
 
@@ -580,11 +601,10 @@ bool CreateVS(ID3DBlob*& vs_bytecode) {
     } else {
         const std::array desc = {
             D3D11_INPUT_ELEMENT_DESC{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-            D3D11_INPUT_ELEMENT_DESC{"COLOR"   , 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-            D3D11_INPUT_ELEMENT_DESC{"TEXCOORD", 2, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            D3D11_INPUT_ELEMENT_DESC{"COLOR"   , 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            D3D11_INPUT_ELEMENT_DESC{"UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
         };
         ID3D11InputLayout* il{};
-        //TODO (casey): CreateInputLayout call is invalid after refactor...
         if (auto hresult_input = device->CreateInputLayout(desc.data(), static_cast<unsigned int>(desc.size()), vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), &il); FAILED(hresult_input)) {
             OutputError("FAILED TO CREATE INPUT LAYOUT\n");
             return false;
@@ -593,7 +613,9 @@ bool CreateVS(ID3DBlob*& vs_bytecode) {
             deviceContext->IASetInputLayout(il);
             //TODO (casey): Create Vertex Buffer? Look in to VertexID since the vertex buffer doesn't do much here.
             ID3D11Buffer* vBuffer{ nullptr };
-            deviceContext->IASetVertexBuffers(0u, 1u, &vBuffer, nullptr, nullptr);
+            unsigned int stride{sizeof(Vector3)};
+            unsigned int offset{0u};
+            deviceContext->IASetVertexBuffers(0u, 1u, &vBuffer, &stride, &offset);
             deviceContext->VSSetShader(vs, nullptr, 0u);
         }
     }
@@ -632,7 +654,7 @@ LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wPar
         ::DestroyWindow(hWnd);
         return 0;
     case WM_DESTROY:
-        isQuitting = true;
+        g_isQuitting = true;
         break;
     default:
         return ::DefWindowProc(hWnd, Msg, wParam, lParam);
@@ -652,6 +674,30 @@ void Render() {
 }
 
 void EndFrame() {
+    DXGI_PRESENT_PARAMETERS params{};
+    params.DirtyRectsCount = 0;
+    params.pDirtyRects = nullptr;
+    params.pScrollOffset = nullptr;
+    params.pScrollRect = nullptr;
+    const auto should_tear = true;
+    const auto is_vsync_off = true;
+    const auto use_no_sync_interval = should_tear && is_vsync_off;
+    const auto sync_interval = use_no_sync_interval ? 0u : 1u;
+    const auto present_flags = use_no_sync_interval ? DXGI_PRESENT_ALLOW_TEARING : 0ul;
+    if (const auto hresult = swapchain4->Present1(sync_interval, present_flags, &params); FAILED(hresult)) {
+        ::ShowWindow(g_hWnd, SW_HIDE);
+        switch (hresult) {
+        case DXGI_ERROR_DEVICE_REMOVED: /* FALLTHROUGH */
+        case DXGI_ERROR_DEVICE_RESET: {
+            ReleaseGlobalDXResources();
+            ::MessageBoxA(g_hWnd, "Your GPU Device has been lost. Please restart the application.", "Graphics Device Lost", MB_OK);
+        }
+        default:
+            ReleaseGlobalDXResources();
+            ::MessageBoxA(g_hWnd, "Present Call Failed.", "Unknown Present Failure", MB_OK);
+            g_isQuitting = true;
+        }
+    }
 }
 
 
