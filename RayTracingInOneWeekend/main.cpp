@@ -65,6 +65,7 @@ bool CompilePixelShaderFromFile(ID3DBlob*& ps_bytecode, const std::filesystem::p
 bool CreatePS(ID3DBlob* ps_bytecode);
 bool CreateBlendState();
 bool CreateSamplerState();
+bool CreateRasterState();
 
 void RunMessagePump();
 bool UnRegister();
@@ -383,6 +384,10 @@ bool InitializeDX11(HWND hwnd) {
     if (!CreateSamplerState()) {
         return false;
     }
+    if (!CreateRasterState()) {
+        return false;
+    }
+
     if (!CreateShaders()) {
         return false;
     }
@@ -409,6 +414,29 @@ bool CreateBlendState() {
     }
     float factor[] = { 1.0f, 1.0f, 1.0f, 1.f };
     deviceContext->OMSetBlendState(state, factor, 0xffffffffu);
+    return true;
+}
+
+bool CreateRasterState() {
+    ID3D11RasterizerState2* state{};
+    D3D11_RASTERIZER_DESC2 desc{};
+    desc.FillMode = D3D11_FILL_SOLID;
+    desc.CullMode = D3D11_CULL_BACK;
+    //TODO (casey): Check FrontCounterClockwise
+    desc.FrontCounterClockwise = false;
+    desc.DepthBias = 0;
+    desc.DepthBiasClamp = 0.0f;
+    desc.SlopeScaledDepthBias = 0.0f;
+    desc.DepthClipEnable = true;
+    desc.ScissorEnable = false;
+    desc.MultisampleEnable = false;
+    desc.AntialiasedLineEnable = false;
+    desc.ForcedSampleCount = 0;
+    desc.ConservativeRaster = D3D11_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+    if (FAILED(device->CreateRasterizerState2(&desc, &state))) {
+        return false;
+    }
+    deviceContext->RSSetState(state);
     return true;
 }
 
