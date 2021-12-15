@@ -51,6 +51,7 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int);
 
 HWND Create();
 bool InitializeDX11(HWND hwnd);
+bool InitializeWorld();
 void ReleaseGlobalDXResources();
 bool CreateShaders();
 void OutputError(const std::string& msg);
@@ -92,18 +93,20 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
 
     if (g_hWnd = Create(); g_hWnd) {
         if(InitializeDX11(g_hWnd)) {
-            while (!g_isQuitting) {
-                RunMessagePump();
-                BeginFrame();
+            if (InitializeWorld()) {
+                while (!g_isQuitting) {
+                    RunMessagePump();
+                    BeginFrame();
 
-                static auto previousFrameTime = GetCurrentTimeElapsed().count();
-                auto currentFrameTime = GetCurrentTimeElapsed().count();
-                auto deltaSeconds = (currentFrameTime - previousFrameTime);
-                previousFrameTime = currentFrameTime;
+                    static auto previousFrameTime = GetCurrentTimeElapsed().count();
+                    auto currentFrameTime = GetCurrentTimeElapsed().count();
+                    auto deltaSeconds = (currentFrameTime - previousFrameTime);
+                    previousFrameTime = currentFrameTime;
 
-                Update(deltaSeconds);
-                Render();
-                EndFrame();
+                    Update(deltaSeconds);
+                    Render();
+                    EndFrame();
+                }
             }
             ReleaseGlobalDXResources();
         }
@@ -688,6 +691,20 @@ LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wPar
         return ::DefWindowProc(hWnd, Msg, wParam, lParam);
     }
     return ::DefWindowProc(hWnd, Msg, wParam, lParam);
+}
+
+const unsigned int world_cbuffer_index = 0u;
+const unsigned int frame_cbuffer_index = 1u;
+const unsigned int object_cbuffer_index = 2u;
+ID3D11Buffer* world_cbuffer{};
+ID3D11Buffer* frame_cbuffer{};
+ID3D11Buffer* object_cbuffer{};
+
+bool InitializeWorld() {
+    deviceContext->PSSetConstantBuffers(frame_cbuffer_index, 1, &frame_cbuffer);
+    deviceContext->PSSetConstantBuffers(world_cbuffer_index, 1, &world_cbuffer);
+    deviceContext->PSSetConstantBuffers(object_cbuffer_index, 1, &object_cbuffer);
+    return true;
 }
 
 void BeginFrame() {
