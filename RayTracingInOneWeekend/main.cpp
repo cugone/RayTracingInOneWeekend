@@ -58,6 +58,7 @@ HWND Create();
 bool InitializeDX11();
 bool InitializeWorld();
 void ReleaseGlobalDXResources();
+bool CreateDx11DeviceAndContext();
 bool GetDxgiDevice();
 bool CreateSwapchain();
 bool CreateBackbuffer();
@@ -240,6 +241,73 @@ void ReleaseGlobalDXResources() {
 
 }
 
+bool CreateDx11DeviceAndContext() {
+    ID3D11Device* tempDevice{};
+    ID3D11DeviceContext* tempDeviceContext{};
+
+    const auto ReleaseTemporaryDXResources = [&]() {
+        SAFE_RELEASE(tempDeviceContext);
+        SAFE_RELEASE(tempDevice);
+    };
+
+    std::array featureLevels = {
+        //D3D_FEATURE_LEVEL_12_2,
+        //D3D_FEATURE_LEVEL_12_1,
+        //D3D_FEATURE_LEVEL_12_0,
+        D3D_FEATURE_LEVEL_11_1,
+        D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0,
+        D3D_FEATURE_LEVEL_9_3,
+        D3D_FEATURE_LEVEL_9_2,
+        D3D_FEATURE_LEVEL_9_1,
+    };
+    {
+        unsigned int flags{ 0u };
+#ifdef _DEBUG
+        flags |= D3D11_CREATE_DEVICE_DEBUG;
+        //flags |= D3D11_CREATE_DEVICE_DEBUGGABLE;
+#else
+        flags |= D3D11_CREATE_DEVICE_PREVENT_ALTERING_LAYER_SETTINGS_FROM_REGISTRY;
+#endif
+        flags |= D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+        if(adapter) {
+            DXGI_ADAPTER_DESC3 adapterDesc{};
+            adapter->GetDesc3(&adapterDesc);
+            if (adapterDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE) {
+                ::OutputDebugStringA("D3D11 Device creation failed. Software Devices are not supported.");
+                ReleaseGlobalDXResources();
+                return false;
+            }
+        }
+        if (auto hresult = ::D3D11CreateDevice(adapter ? adapter : nullptr, adapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE, nullptr, flags, featureLevels.data(), static_cast<unsigned int>(featureLevels.size()), D3D11_SDK_VERSION, &tempDevice, &highest_feature_level, &tempDeviceContext); FAILED(hresult)) {
+            ::OutputDebugStringA("D3D11 Device creation failed. Minimum feature set is not supported.");
+            ReleaseGlobalDXResources();
+            return false;
+        }
+        if (!(highest_feature_level >= D3D_FEATURE_LEVEL_11_0)) {
+            ::OutputDebugStringA("Your graphics card does not support at least DirectX 11.0. Please update your drivers or hardware.");
+            ReleaseGlobalDXResources();
+            return false;
+        }
+    }
+
+    if (auto hresult = tempDevice->QueryInterface(__uuidof(ID3D11Device5), reinterpret_cast<void**>(&device)); FAILED(hresult)) {
+        ReleaseTemporaryDXResources();
+        return false;
+    } else {
+        SAFE_RELEASE(tempDevice);
+    }
+
+    if (auto hresult = tempDeviceContext->QueryInterface(__uuidof(ID3D11DeviceContext4), reinterpret_cast<void**>(&deviceContext)); FAILED(hresult)) {
+        ReleaseTemporaryDXResources();
+        return false;
+    } else {
+        SAFE_RELEASE(tempDeviceContext);
+    }
+    return true;
+}
+
 bool InitializeDX11() {
     {
         IDXGIFactory2* tempFactory{};
@@ -270,7 +338,7 @@ bool InitializeDX11() {
         {
             adapters.push_back(cur_adapter);
         }
-
+        SAFE_RELEASE(cur_adapter);
         if (adapters.empty()) {
             ReleaseGlobalDXResources();
             return false;
@@ -285,71 +353,8 @@ bool InitializeDX11() {
         }
     }
 
-    //Create DX11 Device
-    {
-        ID3D11Device* tempDevice{};
-        ID3D11DeviceContext* tempDeviceContext{};
-
-        const auto ReleaseTemporaryDXResources = [&]() {
-            SAFE_RELEASE(tempDeviceContext);
-            SAFE_RELEASE(tempDevice);
-        };
-
-        std::array featureLevels = {
-            //D3D_FEATURE_LEVEL_12_2,
-            //D3D_FEATURE_LEVEL_12_1,
-            //D3D_FEATURE_LEVEL_12_0,
-            D3D_FEATURE_LEVEL_11_1,
-            D3D_FEATURE_LEVEL_11_0,
-            D3D_FEATURE_LEVEL_10_1,
-            D3D_FEATURE_LEVEL_10_0,
-            D3D_FEATURE_LEVEL_9_3,
-            D3D_FEATURE_LEVEL_9_2,
-            D3D_FEATURE_LEVEL_9_1,
-        };
-        {
-            unsigned int flags{0u};
-#ifdef _DEBUG
-            flags |= D3D11_CREATE_DEVICE_DEBUG;
-            //flags |= D3D11_CREATE_DEVICE_DEBUGGABLE;
-#else
-            flags |= D3D11_CREATE_DEVICE_PREVENT_ALTERING_LAYER_SETTINGS_FROM_REGISTRY;
-#endif
-            flags |= D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-            {
-                DXGI_ADAPTER_DESC3 adapterDesc{};
-                adapter->GetDesc3(&adapterDesc);
-                if(adapterDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE) {
-                    ::OutputDebugStringA("D3D11 Device creation failed. Software Devices are not supported.");
-                    ReleaseGlobalDXResources();
-                    return false;
-                }
-            }
-            if (auto hresult = ::D3D11CreateDevice(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, flags, featureLevels.data(), static_cast<unsigned int>(featureLevels.size()), D3D11_SDK_VERSION, &tempDevice, &highest_feature_level, &tempDeviceContext); FAILED(hresult)) {
-                ::OutputDebugStringA("D3D11 Device creation failed. Minimum feature set is not supported.");
-                ReleaseGlobalDXResources();
-                return false;
-            }
-            if (!(highest_feature_level >= D3D_FEATURE_LEVEL_11_0)) {
-                ::OutputDebugStringA("Your graphics card does not support at least DirectX 11.0. Please update your drivers or hardware.");
-                ReleaseGlobalDXResources();
-                return false;
-            }
-        }
-
-        if (auto hresult = tempDevice->QueryInterface(__uuidof(ID3D11Device5), reinterpret_cast<void**>(&device)); FAILED(hresult)) {
-            ReleaseTemporaryDXResources();
-            return false;
-        } else {
-            SAFE_RELEASE(tempDevice);
-        }
-
-        if (auto hresult = tempDeviceContext->QueryInterface(__uuidof(ID3D11DeviceContext4), reinterpret_cast<void**>(&deviceContext)); FAILED(hresult)) {
-            ReleaseTemporaryDXResources();
-            return false;
-        } else {
-            SAFE_RELEASE(tempDeviceContext);
-        }
+    if (!CreateDx11DeviceAndContext()) {
+        return false;
     }
 
     if (!GetDxgiDevice()) {
