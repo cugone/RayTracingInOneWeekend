@@ -55,9 +55,10 @@ HittableList random_scene();
 int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int);
 
 HWND Create();
-bool InitializeDX11(HWND hwnd);
+bool InitializeDX11();
 bool InitializeWorld();
 void ReleaseGlobalDXResources();
+bool CreateSwapchain();
 bool CreateBackbuffer();
 bool CreateVertexBuffer(const std::vector<Vertex3D>& initialData, std::size_t size);
 bool CreateIndexBuffer(const std::vector<unsigned int>& initialData, std::size_t size);
@@ -100,7 +101,7 @@ HWND g_hWnd{};
 int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
 
     if (g_hWnd = Create(); g_hWnd) {
-        if(InitializeDX11(g_hWnd)) {
+        if(InitializeDX11()) {
             if (InitializeWorld()) {
                 while (!g_isQuitting) {
                     RunMessagePump();
@@ -238,7 +239,7 @@ void ReleaseGlobalDXResources() {
 
 }
 
-bool InitializeDX11(HWND hwnd) {
+bool InitializeDX11() {
     {
         IDXGIFactory2* tempFactory{};
 #ifdef _DEBUG
@@ -358,33 +359,8 @@ bool InitializeDX11(HWND hwnd) {
         return false;
     }
 
-    //Create Swapchain
-    {
-        DXGI_SWAP_CHAIN_DESC1 desc{};
-        desc.Width = 0;
-        desc.Height = 0;
-        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        desc.Stereo = FALSE;
-        desc.SampleDesc.Count = 1;
-        desc.SampleDesc.Quality = 0;
-        desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        desc.BufferCount = 2;
-        desc.Scaling = DXGI_SCALING_STRETCH;
-        desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-        desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-        desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
-
-        IDXGISwapChain1* swapchain1{};
-        if (auto hresult = factory->CreateSwapChainForHwnd(device, hwnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
-            ReleaseGlobalDXResources();
-            return false;
-        }
-
-        if (auto hresult = swapchain1->QueryInterface(__uuidof(IDXGISwapChain4), reinterpret_cast<void**>(&swapchain4)); FAILED(hresult)) {
-            SAFE_RELEASE(swapchain1);
-            ReleaseGlobalDXResources();
-        }
-        SAFE_RELEASE(swapchain1);
+    if (!CreateSwapchain()) {
+        return false;
     }
 
     if (!CreateBackbuffer()) {
@@ -422,6 +398,36 @@ bool InitializeDX11(HWND hwnd) {
         return false;
     }
 
+    return true;
+}
+
+bool CreateSwapchain() {
+    DXGI_SWAP_CHAIN_DESC1 desc{};
+    desc.Width = 0;
+    desc.Height = 0;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.Stereo = FALSE;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    desc.BufferCount = 2;
+    desc.Scaling = DXGI_SCALING_STRETCH;
+    desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+    desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+
+    IDXGISwapChain1* swapchain1{};
+    if (auto hresult = factory->CreateSwapChainForHwnd(device, g_hWnd, &desc, nullptr, nullptr, &swapchain1); FAILED(hresult)) {
+        ReleaseGlobalDXResources();
+        return false;
+    }
+
+    if (auto hresult = swapchain1->QueryInterface(__uuidof(IDXGISwapChain4), reinterpret_cast<void**>(&swapchain4)); FAILED(hresult)) {
+        SAFE_RELEASE(swapchain1);
+        ReleaseGlobalDXResources();
+        return false;
+    }
+    SAFE_RELEASE(swapchain1);
     return true;
 }
 
