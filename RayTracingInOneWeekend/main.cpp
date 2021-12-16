@@ -59,6 +59,7 @@ bool InitializeDX11();
 void ReportLiveObjects();
 bool InitializeWorld();
 void ReleaseGlobalDXResources();
+bool GetAdapter();
 bool CreateDx11DeviceAndContext();
 bool GetDxgiDevice();
 bool CreateSwapchain();
@@ -401,27 +402,10 @@ bool InitializeDX11() {
         SAFE_RELEASE(tempFactory);
     }
 
-    //Get Adapter
-    {
-        IDXGIAdapter4* cur_adapter{};
-        for (unsigned int i = 0u;
-            SUCCEEDED(factory->EnumAdapterByGpuPreference(
-                i,
-                DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
-                __uuidof(IDXGIAdapter4),
-                reinterpret_cast<void**>(&cur_adapter)));
-            ++i)
-        {
-            adapters.push_back(cur_adapter);
-        }
-        SAFE_RELEASE(cur_adapter);
-        if (adapters.empty()) {
-            ReleaseGlobalDXResources();
-            return false;
-        }
+    if (!GetAdapter()) {
+        return false;
     }
 
-    adapter = adapters[0];
     {
         IDXGIOutput* output{};
         for (int i = 0; DXGI_ERROR_NOT_FOUND != adapter->EnumOutputs(i, &output); ++i) {
@@ -476,6 +460,27 @@ bool InitializeDX11() {
         return false;
     }
 
+    return true;
+}
+
+bool GetAdapter() {
+    IDXGIAdapter4* cur_adapter{};
+    for (unsigned int i = 0u;
+        SUCCEEDED(factory->EnumAdapterByGpuPreference(
+            i,
+            DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE,
+            __uuidof(IDXGIAdapter4),
+            reinterpret_cast<void**>(&cur_adapter)));
+        ++i)
+    {
+        adapters.push_back(cur_adapter);
+    }
+    SAFE_RELEASE(cur_adapter);
+    if (adapters.empty()) {
+        ReleaseGlobalDXResources();
+        return false;
+    }
+    adapter = adapters[0];
     return true;
 }
 
