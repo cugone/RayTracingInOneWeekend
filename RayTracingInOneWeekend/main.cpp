@@ -56,6 +56,7 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int);
 
 HWND Create();
 bool InitializeDX11();
+void ReportLiveObjects();
 bool InitializeWorld();
 void ReleaseGlobalDXResources();
 bool CreateDx11DeviceAndContext();
@@ -181,6 +182,7 @@ HWND Create() {
     return 0;
 }
 
+IDXGIDebug* debuggerInstance{};
 IDXGIFactory7* factory{};
 std::vector<IDXGIAdapter4*> adapters{};
 IDXGIAdapter4* adapter{};
@@ -192,6 +194,7 @@ IDXGISwapChain4* swapchain4{};
 ID3D11RenderTargetView* backbuffer{};
 ID3D11VertexShader* vs{};
 ID3D11PixelShader* ps{};
+ID3D11InputLayout* il{};
 D3D_FEATURE_LEVEL highest_feature_level;
 ID3D11Buffer* vertexBuffer{};
 ID3D11Buffer* indexBuffer{};
@@ -204,14 +207,15 @@ ID3D11Buffer* frame_cbuffer{};
 ID3D11Buffer* object_cbuffer{};
 
 #define SAFE_RELEASE(x) { \
-    if(x) { \
-        x->Release(); \
-        x = nullptr; \
+    if((x)) { \
+        (x)->Release(); \
+        (x) = nullptr; \
     } \
 } \
 
 void ReleaseGlobalDXResources() {
 
+    deviceContext->IASetInputLayout(nullptr);
     deviceContext->IASetIndexBuffer(nullptr, DXGI_FORMAT_R32_UINT, 0u);
     deviceContext->IASetVertexBuffers(0u, 0u, nullptr, nullptr, nullptr);
 
@@ -248,6 +252,7 @@ void ReleaseGlobalDXResources() {
 
     deviceContext->ClearState();
 
+    SAFE_RELEASE(il);
     SAFE_RELEASE(vertexBuffer);
     SAFE_RELEASE(indexBuffer);
     SAFE_RELEASE(world_cbuffer);
@@ -270,12 +275,14 @@ void ReleaseGlobalDXResources() {
     for (auto& a : adapters) {
         SAFE_RELEASE(a);
     }
-    SAFE_RELEASE(adapter);
+    adapter = nullptr;
     adapters.clear();
     adapters.shrink_to_fit();
 
     SAFE_RELEASE(factory);
 
+    ReportLiveObjects();
+    SAFE_RELEASE(debuggerInstance);
 }
 
 bool CreateDx11DeviceAndContext() {
@@ -345,7 +352,38 @@ bool CreateDx11DeviceAndContext() {
     return true;
 }
 
+void ReportLiveObjects() {
+#ifdef _DEBUG
+    if (debuggerInstance) {
+        ::OutputDebugStringA("\n-------------------------------");
+        if (auto hr = debuggerInstance->ReportLiveObjects(DXGI_DEBUG_ALL, (DXGI_DEBUG_RLO_FLAGS)(DXGI_DEBUG_RLO_IGNORE_INTERNAL | DXGI_DEBUG_RLO_DETAIL)); FAILED(hr)) {
+            ::OutputDebugStringA("\nThere was an error reporting live objects");
+            ::OutputDebugStringA("\n-------------------------------");
+        }
+        ::OutputDebugStringA("\n-------------------------------");
+    }
+#endif
+}
+
 bool InitializeDX11() {
+#ifdef _DEBUG
+    {
+        HMODULE debug_module = nullptr;
+
+        // Debug Setup
+
+        debug_module = ::LoadLibraryA("Dxgidebug.dll");
+        if (debug_module) {
+            using GetDebugModuleCB = HRESULT(WINAPI*)(REFIID, void**);
+            GetDebugModuleCB cb = (GetDebugModuleCB)::GetProcAddress(debug_module, "DXGIGetDebugInterface");
+            if (auto hr = cb(__uuidof(IDXGIDebug), reinterpret_cast<void**>(&debuggerInstance)); FAILED(hr)) {
+                OutputError("DXGIDebugger failed to initialize.");
+                return false;
+            }
+            ReportLiveObjects();
+        }
+    }
+#endif
     {
         IDXGIFactory2* tempFactory{};
 #ifdef _DEBUG
@@ -783,7 +821,6 @@ bool CreateVS(ID3DBlob*& vs_bytecode) {
             D3D11_INPUT_ELEMENT_DESC{"COLOR"   , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
             D3D11_INPUT_ELEMENT_DESC{"UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
         };
-        ID3D11InputLayout* il{};
         if (auto hresult_input = device->CreateInputLayout(desc.data(), static_cast<unsigned int>(desc.size()), vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), &il); FAILED(hresult_input)) {
             OutputError("FAILED TO CREATE INPUT LAYOUT\n");
             SAFE_RELEASE(vs_bytecode);
