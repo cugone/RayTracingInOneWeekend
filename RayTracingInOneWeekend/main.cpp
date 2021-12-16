@@ -56,6 +56,7 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int);
 
 HWND Create();
 bool InitializeDX11();
+bool InitializeDebuggerInstance();
 bool CreateFactory();
 void ReportLiveObjects();
 bool InitializeWorld();
@@ -370,24 +371,11 @@ void ReportLiveObjects() {
 }
 
 bool InitializeDX11() {
-#ifdef _DEBUG
-    {
-        HMODULE debug_module = nullptr;
 
-        // Debug Setup
-
-        debug_module = ::LoadLibraryA("Dxgidebug.dll");
-        if (debug_module) {
-            using GetDebugModuleCB = HRESULT(WINAPI*)(REFIID, void**);
-            GetDebugModuleCB cb = (GetDebugModuleCB)::GetProcAddress(debug_module, "DXGIGetDebugInterface");
-            if (auto hr = cb(__uuidof(IDXGIDebug), reinterpret_cast<void**>(&debuggerInstance)); FAILED(hr)) {
-                OutputError("DXGIDebugger failed to initialize.");
-                return false;
-            }
-            ReportLiveObjects();
-        }
+    if (!InitializeDebuggerInstance()) {
+        return false;
     }
-#endif
+
     if (!CreateFactory()) {
         return false;
     }
@@ -445,6 +433,24 @@ bool InitializeDX11() {
         return false;
     }
 
+    return true;
+}
+
+bool InitializeDebuggerInstance() {
+#ifdef _DEBUG
+    HMODULE debug_module = nullptr;
+
+    debug_module = ::LoadLibraryA("Dxgidebug.dll");
+    if (debug_module) {
+        using GetDebugModuleCB = HRESULT(WINAPI*)(REFIID, void**);
+        GetDebugModuleCB cb = (GetDebugModuleCB)::GetProcAddress(debug_module, "DXGIGetDebugInterface");
+        if (auto hr = cb(__uuidof(IDXGIDebug), reinterpret_cast<void**>(&debuggerInstance)); FAILED(hr)) {
+            OutputError("DXGIDebugger failed to initialize.");
+            return false;
+        }
+        ReportLiveObjects();
+    }
+#endif
     return true;
 }
 
