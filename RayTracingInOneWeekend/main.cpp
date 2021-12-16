@@ -58,6 +58,7 @@ HWND Create();
 bool InitializeDX11(HWND hwnd);
 bool InitializeWorld();
 void ReleaseGlobalDXResources();
+bool CreateBackbuffer();
 bool CreateVertexBuffer(const std::vector<Vertex3D>& initialData, std::size_t size);
 bool CreateIndexBuffer(const std::vector<unsigned int>& initialData, std::size_t size);
 bool CreateShaders();
@@ -386,21 +387,9 @@ bool InitializeDX11(HWND hwnd) {
         SAFE_RELEASE(swapchain1);
     }
 
-    // Create Backbuffer
-    ID3D11Texture2D* tBackbuffer{};
-    if (FAILED(swapchain4->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&tBackbuffer)))) {
-        ReleaseGlobalDXResources();
+    if (!CreateBackbuffer()) {
         return false;
     }
-
-    if (FAILED(device->CreateRenderTargetView(tBackbuffer, nullptr, &backbuffer))) {
-        SAFE_RELEASE(tBackbuffer);
-        ReleaseGlobalDXResources();
-        return false;
-    }
-    SAFE_RELEASE(tBackbuffer);
-
-    deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
 
     if (!CreateBlendState()) {
         return false;
@@ -433,6 +422,24 @@ bool InitializeDX11(HWND hwnd) {
         return false;
     }
 
+    return true;
+}
+
+bool CreateBackbuffer() {
+    ID3D11Texture2D* tBackbuffer{};
+    if (FAILED(swapchain4->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&tBackbuffer)))) {
+        ReleaseGlobalDXResources();
+        return false;
+    }
+
+    if (FAILED(device->CreateRenderTargetView(tBackbuffer, nullptr, &backbuffer))) {
+        SAFE_RELEASE(tBackbuffer);
+        ReleaseGlobalDXResources();
+        return false;
+    }
+    SAFE_RELEASE(tBackbuffer);
+
+    deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
     return true;
 }
 
