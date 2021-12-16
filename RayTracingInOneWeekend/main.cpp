@@ -211,6 +211,43 @@ ID3D11Buffer* object_cbuffer{};
 } \
 
 void ReleaseGlobalDXResources() {
+
+    deviceContext->IASetIndexBuffer(nullptr, DXGI_FORMAT_R32_UINT, 0u);
+    deviceContext->IASetVertexBuffers(0u, 0u, nullptr, nullptr, nullptr);
+
+    {
+        std::array<ID3D11Buffer*, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> buffers{};
+        deviceContext->VSSetConstantBuffers(0, static_cast<unsigned int>(buffers.size()), buffers.data());
+    }
+    {
+        std::array<ID3D11SamplerState*, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT> buffers{};
+        deviceContext->VSSetSamplers(0, static_cast<unsigned int>(buffers.size()), buffers.data());
+    }
+    deviceContext->VSSetShader(nullptr, nullptr, 0u);
+
+
+    {
+        std::array<ID3D11ShaderResourceView*, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT> buffers{};
+        deviceContext->VSSetShaderResources(0, static_cast<unsigned int>(buffers.size()), buffers.data());
+    }
+
+    {
+        std::array<ID3D11Buffer*, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> buffers{};
+        deviceContext->PSSetConstantBuffers(0, static_cast<unsigned int>(buffers.size()), buffers.data());
+    }
+    {
+        std::array<ID3D11SamplerState*, D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT> buffers{};
+        deviceContext->PSSetSamplers(0, static_cast<unsigned int>(buffers.size()), buffers.data());
+    }
+    deviceContext->PSSetShader(nullptr, nullptr, 0u);
+    {
+        std::array<ID3D11ShaderResourceView*, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT> buffers{};
+        deviceContext->PSSetShaderResources(0, static_cast<unsigned int>(buffers.size()), buffers.data());
+    }
+
+
+    deviceContext->ClearState();
+
     SAFE_RELEASE(vertexBuffer);
     SAFE_RELEASE(indexBuffer);
     SAFE_RELEASE(world_cbuffer);
@@ -233,7 +270,7 @@ void ReleaseGlobalDXResources() {
     for (auto& a : adapters) {
         SAFE_RELEASE(a);
     }
-    adapter = nullptr;
+    SAFE_RELEASE(adapter);
     adapters.clear();
     adapters.shrink_to_fit();
 
@@ -478,6 +515,7 @@ bool CreateBlendState() {
     }
     float factor[] = { 1.0f, 1.0f, 1.0f, 1.f };
     deviceContext->OMSetBlendState(state, factor, 0xffffffffu);
+    SAFE_RELEASE(state);
     return true;
 }
 
@@ -501,6 +539,7 @@ bool CreateRasterState() {
         return false;
     }
     deviceContext->RSSetState(state);
+    SAFE_RELEASE(state);
     return true;
 }
 
@@ -525,6 +564,7 @@ bool CreateSamplerState() {
     }
     deviceContext->PSSetSamplers(0, 1, &state);
     deviceContext->VSSetSamplers(0, 1, &state);
+    SAFE_RELEASE(state);
     return true;
 }
 
@@ -548,23 +588,28 @@ bool CreateVertexShader() {
     if (std::filesystem::path cso_path_canon = std::filesystem::canonical(cso_path, cso_ec); !cso_needs_recompile && !cso_ec) {
         cso_path_canon.make_preferred();
         if (!FillBlobFromCache(cso_path_canon, vs_bytecode)) {
+            SAFE_RELEASE(vs_bytecode);
             return false;
         }
     } else {
         std::error_code hlsl_ec{};
         if (std::filesystem::path hlsl_path_canon = std::filesystem::canonical(hlsl_path, hlsl_ec); hlsl_ec) {
             OutputError(hlsl_path.string() + " could not be accessed. Reason: " + hlsl_ec.message() + '\n');
+            SAFE_RELEASE(vs_bytecode);
             return false;
         } else {
             hlsl_path_canon.make_preferred();
             if (CompileVertexShaderFromFile(vs_bytecode, hlsl_path_canon) && !WriteShaderCacheToFile(hlsl_path_canon, vs_bytecode)) {
+                SAFE_RELEASE(vs_bytecode);
                 return false;
             }
         }
     }
     if (!CreateVS(vs_bytecode)) {
+        SAFE_RELEASE(vs_bytecode);
         return false;
     }
+    SAFE_RELEASE(vs_bytecode);
     return true;
 }
 
@@ -579,6 +624,7 @@ bool CreatePixelShader() {
     if (std::filesystem::path cso_path_canon = std::filesystem::canonical(cso_path, cso_ec); !cso_needs_recompile && !cso_ec) {
         cso_path_canon.make_preferred();
         if (!FillBlobFromCache(cso_path_canon, ps_bytecode)) {
+            SAFE_RELEASE(ps_bytecode);
             return false;
         }
     }
@@ -586,17 +632,21 @@ bool CreatePixelShader() {
         std::error_code hlsl_ec{};
         if (std::filesystem::path hlsl_path_canon = std::filesystem::canonical(hlsl_path, hlsl_ec); hlsl_ec) {
             OutputError(hlsl_path.string() + " could not be accessed. Reason: " + hlsl_ec.message() + '\n');
+            SAFE_RELEASE(ps_bytecode);
             return false;
         } else {
             hlsl_path_canon.make_preferred();
             if (CompilePixelShaderFromFile(ps_bytecode, hlsl_path_canon) && !WriteShaderCacheToFile(hlsl_path_canon, ps_bytecode)) {
+                SAFE_RELEASE(ps_bytecode);
                 return false;
             }
         }
     }
     if (!CreatePS(ps_bytecode)) {
+        SAFE_RELEASE(ps_bytecode);
         return false;
     }
+    SAFE_RELEASE(ps_bytecode);
     return true;
 }
 
@@ -681,6 +731,8 @@ bool CompileVertexShaderFromFile(ID3DBlob*& vs_bytecode, const std::filesystem::
 
     if (auto hresult_compile = ::D3DCompileFromFile(path.wstring().c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_0", hlsl_flags, fx_flags, &vs_bytecode, &errors); FAILED(hresult_compile)) {
         OutputShaderCompileErrors(errors, "Vertex Shader failed to compile. See Output Window for details.");
+        SAFE_RELEASE(errors);
+        SAFE_RELEASE(vs_bytecode);
         return false;
     }
     return true;
@@ -702,6 +754,8 @@ bool CompilePixelShaderFromFile(ID3DBlob*& ps_bytecode, const std::filesystem::p
 
     if (auto hresult_compile = ::D3DCompileFromFile(path.wstring().c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_0", hlsl_flags, fx_flags, &ps_bytecode, &errors); FAILED(hresult_compile)) {
         OutputShaderCompileErrors(errors, "Pixel Shader failed to compile. See Output Window for details.");
+        SAFE_RELEASE(errors);
+        SAFE_RELEASE(ps_bytecode);
         return false;
     }
     return true;
@@ -721,6 +775,7 @@ bool WriteShaderCacheToFile(const std::filesystem::path& path, ID3DBlob* blob) {
 bool CreateVS(ID3DBlob*& vs_bytecode) {
     if (auto hresult_create = device->CreateVertexShader(vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), nullptr, &vs); FAILED(hresult_create)) {
         OutputError("FAILED TO CREATE VERTEX SHADER\n");
+        SAFE_RELEASE(vs_bytecode);
         return false;
     } else {
         const std::array desc = {
@@ -731,6 +786,7 @@ bool CreateVS(ID3DBlob*& vs_bytecode) {
         ID3D11InputLayout* il{};
         if (auto hresult_input = device->CreateInputLayout(desc.data(), static_cast<unsigned int>(desc.size()), vs_bytecode->GetBufferPointer(), vs_bytecode->GetBufferSize(), &il); FAILED(hresult_input)) {
             OutputError("FAILED TO CREATE INPUT LAYOUT\n");
+            SAFE_RELEASE(vs_bytecode);
             return false;
         }
         else {
@@ -748,6 +804,7 @@ bool CreateVS(ID3DBlob*& vs_bytecode) {
 
 bool CreatePS(ID3DBlob* ps_bytecode) {
     if (auto hresult_create = device->CreatePixelShader(ps_bytecode->GetBufferPointer(), ps_bytecode->GetBufferSize(), nullptr, &ps); FAILED(hresult_create)) {
+        SAFE_RELEASE(ps_bytecode);
         return false;
     } else {
         deviceContext->PSSetShader(ps, nullptr, 0u);
