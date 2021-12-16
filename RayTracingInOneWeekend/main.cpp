@@ -358,9 +358,10 @@ void ReportLiveObjects() {
         ::OutputDebugStringA("\n-------------------------------");
         if (auto hr = debuggerInstance->ReportLiveObjects(DXGI_DEBUG_ALL, (DXGI_DEBUG_RLO_FLAGS)(DXGI_DEBUG_RLO_IGNORE_INTERNAL | DXGI_DEBUG_RLO_DETAIL)); FAILED(hr)) {
             ::OutputDebugStringA("\nThere was an error reporting live objects");
-            ::OutputDebugStringA("\n-------------------------------");
+            ::OutputDebugStringA("\n-------------------------------\n");
+            return;
         }
-        ::OutputDebugStringA("\n-------------------------------");
+        ::OutputDebugStringA("\n-------------------------------\n");
     }
 #endif
 }
