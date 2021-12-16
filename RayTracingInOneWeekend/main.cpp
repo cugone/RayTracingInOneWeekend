@@ -58,6 +58,7 @@ HWND Create();
 bool InitializeDX11();
 bool InitializeWorld();
 void ReleaseGlobalDXResources();
+bool GetDxgiDevice();
 bool CreateSwapchain();
 bool CreateBackbuffer();
 bool CreateVertexBuffer(const std::vector<Vertex3D>& initialData, std::size_t size);
@@ -350,12 +351,8 @@ bool InitializeDX11() {
             SAFE_RELEASE(tempDeviceContext);
         }
     }
-    //Create DXGI interfaces
 
-    //Get IDXGI Device
-
-    if (auto hresult = device->QueryInterface(__uuidof(IDXGIDevice4), reinterpret_cast<void**>(&dxgiDevice)); FAILED(hresult)) {
-        ReleaseGlobalDXResources();
+    if (!GetDxgiDevice()) {
         return false;
     }
 
@@ -398,6 +395,14 @@ bool InitializeDX11() {
         return false;
     }
 
+    return true;
+}
+
+bool GetDxgiDevice() {
+    if (auto hresult = device->QueryInterface(__uuidof(IDXGIDevice4), reinterpret_cast<void**>(&dxgiDevice)); FAILED(hresult)) {
+        ReleaseGlobalDXResources();
+        return false;
+    }
     return true;
 }
 
