@@ -39,6 +39,11 @@
 #include <d3dcompiler.h>
 #pragma comment(lib, "d3dcompiler.lib")
 
+struct Vertex3D {
+    Vector3 position{};
+    Color color{};
+    float uv[2];
+};
 
 Color ray_color(const Ray3& r, const Hittable& world, int depth);
 float hit_sphere(const Point3& center, float radius, const Ray3& r);
@@ -53,6 +58,8 @@ HWND Create();
 bool InitializeDX11(HWND hwnd);
 bool InitializeWorld();
 void ReleaseGlobalDXResources();
+bool CreateVertexBuffer(const std::vector<Vertex3D>& initialData, std::size_t size);
+bool CreateIndexBuffer(const std::vector<unsigned int>& initialData, std::size_t size);
 bool CreateShaders();
 void OutputError(const std::string& msg);
 void OutputShaderCompileErrors(ID3DBlob* errors, const char* msg);
@@ -182,6 +189,8 @@ ID3D11RenderTargetView* backbuffer{};
 ID3D11VertexShader* vs{};
 ID3D11PixelShader* ps{};
 D3D_FEATURE_LEVEL highest_feature_level;
+ID3D11Buffer* vertexBuffer{};
+ID3D11Buffer* indexBuffer{};
 
 const unsigned int world_cbuffer_index = 0u;
 const unsigned int frame_cbuffer_index = 1u;
@@ -198,6 +207,8 @@ ID3D11Buffer* object_cbuffer{};
 } \
 
 void ReleaseGlobalDXResources() {
+    SAFE_RELEASE(vertexBuffer);
+    SAFE_RELEASE(indexBuffer);
     SAFE_RELEASE(world_cbuffer);
     SAFE_RELEASE(frame_cbuffer);
     SAFE_RELEASE(object_cbuffer);
@@ -400,6 +411,23 @@ bool InitializeDX11(HWND hwnd) {
     if (!CreateRasterState()) {
         return false;
     }
+    {
+        std::vector v{
+             Vertex3D{Vector3{-0.5f, +0.5f, 0.0f}, Color{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f} }
+            ,Vertex3D{Vector3{-0.5f, -0.5f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f} }
+            ,Vertex3D{Vector3{+0.5f, -0.5f, 0.0f}, Color{0.0f, 1.0f, 0.0f}, {1.0f, 0.0f} }
+            ,Vertex3D{Vector3{+0.5f, +0.5f, 0.0f}, Color{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f} }
+        };
+        if (!CreateVertexBuffer(v, static_cast<decltype(v)::size_type>(v.size()))) {
+            return false;
+        }
+    }
+    {
+        std::vector<unsigned int> i{ 0u, 1u, 2u, 0u, 2u, 3u};
+        if (!CreateIndexBuffer(i, static_cast<decltype(i)::size_type>(i.size()))) {
+            return false;
+        }
+    }
 
     if (!CreateShaders()) {
         return false;
@@ -549,6 +577,38 @@ bool CreatePixelShader() {
     return true;
 }
 
+bool CreateVertexBuffer(const std::vector<Vertex3D>& initialData, std::size_t size) {
+    D3D11_BUFFER_DESC desc{};
+    std::memset(&desc, 0, sizeof(desc));
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    desc.ByteWidth = sizeof(std::remove_cvref_t<decltype(initialData)>::value_type) * static_cast<unsigned int>(size);
+
+    D3D11_SUBRESOURCE_DATA data{};
+    data.pSysMem = initialData.data();
+
+    if (FAILED(device->CreateBuffer(&desc, &data, &vertexBuffer))) {
+        return false;
+    }
+    return true;
+}
+
+bool CreateIndexBuffer(const std::vector<unsigned int>& initialData, std::size_t size) {
+    D3D11_BUFFER_DESC desc{};
+    std::memset(&desc, 0, sizeof(desc));
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    desc.ByteWidth = sizeof(std::remove_cvref_t<decltype(initialData)>::value_type) * static_cast<unsigned int>(size);
+
+    D3D11_SUBRESOURCE_DATA data{};
+    data.pSysMem = initialData.data();
+
+    if (FAILED(device->CreateBuffer(&desc, &data, &indexBuffer))) {
+        return false;
+    }
+    return true;
+}
+
 void OutputError(const std::string& msg) {
 #ifdef _MSC_VER
     ::OutputDebugStringA(msg.c_str());
@@ -642,7 +702,7 @@ bool CreateVS(ID3DBlob*& vs_bytecode) {
     } else {
         const std::array desc = {
             D3D11_INPUT_ELEMENT_DESC{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-            D3D11_INPUT_ELEMENT_DESC{"COLOR"   , 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+            D3D11_INPUT_ELEMENT_DESC{"COLOR"   , 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
             D3D11_INPUT_ELEMENT_DESC{"UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
         };
         ID3D11InputLayout* il{};
@@ -653,10 +713,10 @@ bool CreateVS(ID3DBlob*& vs_bytecode) {
         else {
             deviceContext->IASetInputLayout(il);
             //TODO (casey): Create Vertex Buffer? Look in to VertexID since the vertex buffer doesn't do much here.
-            ID3D11Buffer* vBuffer{ nullptr };
-            unsigned int stride{sizeof(Vector3)};
+            unsigned int stride{sizeof(Vertex3D)};
             unsigned int offset{0u};
-            deviceContext->IASetVertexBuffers(0u, 1u, &vBuffer, &stride, &offset);
+            deviceContext->IASetVertexBuffers(0u, 1u, &vertexBuffer, &stride, &offset);
+            deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0u);
             deviceContext->VSSetShader(vs, nullptr, 0u);
         }
     }
