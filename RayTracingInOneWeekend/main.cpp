@@ -56,6 +56,7 @@ int WINAPI wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int);
 
 HWND Create();
 bool InitializeDX11();
+bool CreateFactory();
 void ReportLiveObjects();
 bool InitializeWorld();
 void ReleaseGlobalDXResources();
@@ -387,20 +388,8 @@ bool InitializeDX11() {
         }
     }
 #endif
-    {
-        IDXGIFactory2* tempFactory{};
-#ifdef _DEBUG
-        if (auto hresult = ::CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, __uuidof(IDXGIFactory2), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
-#else
-        if (auto hresult = ::CreateDXGIFactory2(0, __uuidof(IDXGIFactory2), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
-#endif
-            return false;
-        }
-        if (auto hresult = tempFactory->QueryInterface(__uuidof(IDXGIFactory7), reinterpret_cast<void**>(&factory)); FAILED(hresult)) {
-            SAFE_RELEASE(tempFactory);
-            return false;
-        }
-        SAFE_RELEASE(tempFactory);
+    if (!CreateFactory()) {
+        return false;
     }
 
     if (!GetAdapter()) {
@@ -456,6 +445,23 @@ bool InitializeDX11() {
         return false;
     }
 
+    return true;
+}
+
+bool CreateFactory() {
+    IDXGIFactory2* tempFactory{};
+#ifdef _DEBUG
+    if (auto hresult = ::CreateDXGIFactory2(DXGI_CREATE_FACTORY_DEBUG, __uuidof(IDXGIFactory2), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
+#else
+    if (auto hresult = ::CreateDXGIFactory2(0, __uuidof(IDXGIFactory2), reinterpret_cast<void**>(&tempFactory)); FAILED(hresult)) {
+#endif
+        return false;
+    }
+    if (auto hresult = tempFactory->QueryInterface(__uuidof(IDXGIFactory7), reinterpret_cast<void**>(&factory)); FAILED(hresult)) {
+        SAFE_RELEASE(tempFactory);
+        return false;
+    }
+    SAFE_RELEASE(tempFactory);
     return true;
 }
 
