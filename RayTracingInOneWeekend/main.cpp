@@ -183,6 +183,13 @@ ID3D11VertexShader* vs{};
 ID3D11PixelShader* ps{};
 D3D_FEATURE_LEVEL highest_feature_level;
 
+const unsigned int world_cbuffer_index = 0u;
+const unsigned int frame_cbuffer_index = 1u;
+const unsigned int object_cbuffer_index = 2u;
+ID3D11Buffer* world_cbuffer{};
+ID3D11Buffer* frame_cbuffer{};
+ID3D11Buffer* object_cbuffer{};
+
 #define SAFE_RELEASE(x) { \
     if(x) { \
         x->Release(); \
@@ -191,6 +198,9 @@ D3D_FEATURE_LEVEL highest_feature_level;
 } \
 
 void ReleaseGlobalDXResources() {
+    SAFE_RELEASE(world_cbuffer);
+    SAFE_RELEASE(frame_cbuffer);
+    SAFE_RELEASE(object_cbuffer);
     SAFE_RELEASE(ps);
     SAFE_RELEASE(vs);
     SAFE_RELEASE(backbuffer);
@@ -692,13 +702,6 @@ LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wPar
     }
     return ::DefWindowProc(hWnd, Msg, wParam, lParam);
 }
-
-const unsigned int world_cbuffer_index = 0u;
-const unsigned int frame_cbuffer_index = 1u;
-const unsigned int object_cbuffer_index = 2u;
-ID3D11Buffer* world_cbuffer{};
-ID3D11Buffer* frame_cbuffer{};
-ID3D11Buffer* object_cbuffer{};
 
 bool InitializeWorld() {
     deviceContext->PSSetConstantBuffers(frame_cbuffer_index, 1, &frame_cbuffer);
