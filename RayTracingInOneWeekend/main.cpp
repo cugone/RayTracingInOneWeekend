@@ -60,6 +60,7 @@ void ReportLiveObjects();
 bool InitializeWorld();
 void ReleaseGlobalDXResources();
 bool GetAdapter();
+void GetOutputs();
 bool CreateDx11DeviceAndContext();
 bool GetDxgiDevice();
 bool CreateSwapchain();
@@ -406,12 +407,7 @@ bool InitializeDX11() {
         return false;
     }
 
-    {
-        IDXGIOutput* output{};
-        for (int i = 0; DXGI_ERROR_NOT_FOUND != adapter->EnumOutputs(i, &output); ++i) {
-            outputs.push_back(output);
-        }
-    }
+    GetOutputs();
 
     if (!CreateDx11DeviceAndContext()) {
         return false;
@@ -482,6 +478,13 @@ bool GetAdapter() {
     }
     adapter = adapters[0];
     return true;
+}
+
+void GetOutputs() {
+    IDXGIOutput* output{};
+    for (int i = 0; DXGI_ERROR_NOT_FOUND != adapter->EnumOutputs(i, &output); ++i) {
+        outputs.push_back(output);
+    }
 }
 
 bool GetDxgiDevice() {
