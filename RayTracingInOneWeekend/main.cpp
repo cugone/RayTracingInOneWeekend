@@ -216,7 +216,9 @@ ID3D11PixelShader* ps{};
 ID3D11InputLayout* il{};
 D3D_FEATURE_LEVEL highest_feature_level;
 ID3D11Buffer* vertexBuffer{};
+std::size_t vertexBufferSize{ 0u };
 ID3D11Buffer* indexBuffer{};
+std::size_t indexBufferSize{ 0u };
 
 const unsigned int world_cbuffer_index = 0u;
 const unsigned int frame_cbuffer_index = 1u;
@@ -436,23 +438,23 @@ bool InitializeDX11() {
     if (!CreateRasterState()) {
         return false;
     }
-    {
-        std::vector v{
-             Vertex3D{Vector3{-0.5f, +0.5f, 0.0f}, Color{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f} }
-            ,Vertex3D{Vector3{-0.5f, -0.5f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f} }
-            ,Vertex3D{Vector3{+0.5f, -0.5f, 0.0f}, Color{0.0f, 1.0f, 0.0f}, {1.0f, 0.0f} }
-            ,Vertex3D{Vector3{+0.5f, +0.5f, 0.0f}, Color{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f} }
-        };
-        if (!CreateVertexBuffer(v, static_cast<decltype(v)::size_type>(v.size()))) {
-            return false;
-        }
-    }
-    {
-        std::vector<unsigned int> i{ 0u, 1u, 2u, 0u, 2u, 3u};
-        if (!CreateIndexBuffer(i, static_cast<decltype(i)::size_type>(i.size()))) {
-            return false;
-        }
-    }
+    //{
+    //    std::vector v{
+    //         Vertex3D{Vector3{-0.5f, +0.5f, 0.0f}, Color{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f} }
+    //        ,Vertex3D{Vector3{-0.5f, -0.5f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f} }
+    //        ,Vertex3D{Vector3{+0.5f, -0.5f, 0.0f}, Color{0.0f, 1.0f, 0.0f}, {1.0f, 0.0f} }
+    //        ,Vertex3D{Vector3{+0.5f, +0.5f, 0.0f}, Color{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f} }
+    //    };
+    //    if (!CreateVertexBuffer(v, static_cast<decltype(v)::size_type>(v.size()))) {
+    //        return false;
+    //    }
+    //}
+    //{
+    //    std::vector<unsigned int> i{ 0u, 1u, 2u, 0u, 2u, 3u};
+    //    if (!CreateIndexBuffer(i, static_cast<decltype(i)::size_type>(i.size()))) {
+    //        return false;
+    //    }
+    //}
 
     if (!CreateShaders()) {
         return false;
@@ -821,14 +823,15 @@ bool CreatePixelShader() {
 bool CreateVertexBuffer(const std::vector<Vertex3D>& initialData, std::size_t size) {
     D3D11_BUFFER_DESC desc{};
     std::memset(&desc, 0, sizeof(desc));
-    desc.Usage = D3D11_USAGE_IMMUTABLE;
-    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_VERTEX_BUFFER;
     desc.ByteWidth = sizeof(std::remove_cvref_t<decltype(initialData)>::value_type) * static_cast<unsigned int>(size);
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
     D3D11_SUBRESOURCE_DATA data{};
     data.pSysMem = initialData.data();
 
-    if (FAILED(device->CreateBuffer(&desc, &data, &vertexBuffer))) {
+    if (auto hr = device->CreateBuffer(&desc, &data, &vertexBuffer); FAILED(hr)) {
         return false;
     }
     return true;
@@ -837,14 +840,15 @@ bool CreateVertexBuffer(const std::vector<Vertex3D>& initialData, std::size_t si
 bool CreateIndexBuffer(const std::vector<unsigned int>& initialData, std::size_t size) {
     D3D11_BUFFER_DESC desc{};
     std::memset(&desc, 0, sizeof(desc));
-    desc.Usage = D3D11_USAGE_IMMUTABLE;
-    desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_INDEX_BUFFER;
     desc.ByteWidth = sizeof(std::remove_cvref_t<decltype(initialData)>::value_type) * static_cast<unsigned int>(size);
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
     D3D11_SUBRESOURCE_DATA data{};
     data.pSysMem = initialData.data();
 
-    if (FAILED(device->CreateBuffer(&desc, &data, &indexBuffer))) {
+    if (auto hr = device->CreateBuffer(&desc, &data, &indexBuffer); FAILED(hr)) {
         return false;
     }
     return true;
@@ -958,11 +962,6 @@ bool CreateVS(ID3DBlob*& vs_bytecode) {
         }
         else {
             deviceContext->IASetInputLayout(il);
-            //TODO (casey): Create Vertex Buffer? Look in to VertexID since the vertex buffer doesn't do much here.
-            unsigned int stride{sizeof(Vertex3D)};
-            unsigned int offset{0u};
-            deviceContext->IASetVertexBuffers(0u, 1u, &vertexBuffer, &stride, &offset);
-            deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0u);
             deviceContext->VSSetShader(vs, nullptr, 0u);
         }
     }
@@ -1027,6 +1026,53 @@ void Update(float /*deltaSeconds*/) {
 void Render() {
     float color[] = {0.0f, 0.0f, 0.0f, 1.0f};
     deviceContext->ClearRenderTargetView(backbuffer, color);
+    deviceContext->ClearDepthStencilView(depthStencil, D3D11_CLEAR_DEPTH, 1.0f, 0);
+    deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    {
+        std::vector buffer{
+            Vertex3D{Vector3{0.0f, 0.0f, 0.0f}, Color{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}}
+            ,Vertex3D{Vector3{1.0f, 0.0f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}}
+            ,Vertex3D{Vector3{0.0f, 1.0f, 0.0f}, Color{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}}
+            ,Vertex3D{Vector3{1.0f, 1.0f, 0.0f}, Color{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}}
+        };
+        if (buffer.size() > vertexBufferSize) {
+            vertexBufferSize = buffer.size() * 2u;
+            SAFE_RELEASE(vertexBuffer);
+            CreateVertexBuffer(buffer, vertexBufferSize);
+        }
+        {
+            D3D11_MAPPED_SUBRESOURCE resource{};
+            if(SUCCEEDED(deviceContext->Map(vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0U, &resource))) {
+                std::memcpy(resource.pData, buffer.data(), sizeof(Vertex3D) * buffer.size());
+                deviceContext->Unmap(vertexBuffer, 0);
+            }
+        }
+    }
+
+    {
+        std::vector buffer{
+            0u, 1u, 2u, 0u, 2u, 3u
+        };
+        if (buffer.size() > indexBufferSize) {
+            indexBufferSize = buffer.size() * 2u;
+            SAFE_RELEASE(indexBuffer);
+            CreateIndexBuffer(buffer, indexBufferSize);
+        }
+        {
+            D3D11_MAPPED_SUBRESOURCE resource{};
+            if(SUCCEEDED(deviceContext->Map(indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0U, &resource))) {
+                std::memcpy(resource.pData, buffer.data(), sizeof(unsigned int) * buffer.size());
+                deviceContext->Unmap(indexBuffer, 0);
+            }
+        }
+        unsigned int stride{ sizeof(Vertex3D) };
+        unsigned int offset{ 0u };
+        deviceContext->IASetVertexBuffers(0u, 1u, &vertexBuffer, &stride, &offset);
+        deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0u);
+        deviceContext->DrawIndexed(static_cast<unsigned int>(buffer.size()), 0, 0);
+    }
+
     //TODO(casey): Implement SetVertexBuffers
     //const unsigned int offset{ 0u };
     //const unsigned int stride = sizeof(Vector3);
