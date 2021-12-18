@@ -66,6 +66,7 @@ void GetOutputs();
 bool CreateDx11DeviceAndContext();
 bool GetDxgiDevice();
 bool CreateSwapchain();
+bool CreateDepthStencil();
 bool CreateBackbuffer();
 bool CreateVertexBuffer(const std::vector<Vertex3D>& initialData, std::size_t size);
 bool CreateIndexBuffer(const std::vector<unsigned int>& initialData, std::size_t size);
@@ -196,6 +197,8 @@ ID3D11DeviceContext4* deviceContext{};
 IDXGIDevice4* dxgiDevice{};
 IDXGISwapChain4* swapchain4{};
 ID3D11RenderTargetView* backbuffer{};
+ID3D11DepthStencilView* depthStencil{};
+ID3D11DepthStencilState* depthStencilState{};
 ID3D11VertexShader* vs{};
 ID3D11PixelShader* ps{};
 ID3D11InputLayout* il{};
@@ -264,6 +267,8 @@ void ReleaseGlobalDXResources() {
     SAFE_RELEASE(object_cbuffer);
     SAFE_RELEASE(ps);
     SAFE_RELEASE(vs);
+    SAFE_RELEASE(depthStencil);
+    SAFE_RELEASE(depthStencilState);
     SAFE_RELEASE(backbuffer);
     SAFE_RELEASE(swapchain4);
     SAFE_RELEASE(deviceContext);
@@ -398,9 +403,15 @@ bool InitializeDX11() {
         return false;
     }
 
+    if (!CreateDepthStencil()) {
+        return false;
+    }
+
     if (!CreateBackbuffer()) {
         return false;
     }
+    
+    deviceContext->OMSetRenderTargets(1, &backbuffer, depthStencil);
 
     if (!CreateBlendState()) {
         return false;
@@ -534,6 +545,78 @@ bool CreateSwapchain() {
         return false;
     }
     SAFE_RELEASE(swapchain1);
+    return true;
+}
+
+bool CreateDepthStencil() {
+    ID3D11Texture2D* tDepthStencil{};
+    {
+
+        D3D11_TEXTURE2D_DESC tDesc{};
+        std::memset(&tDesc, 0, sizeof(tDesc));
+        tDesc.Width = static_cast<unsigned int>(screenWidth);
+        tDesc.Height = static_cast<unsigned int>(screenHeight);
+        tDesc.MipLevels = 1;
+        tDesc.ArraySize = 1;
+        tDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        tDesc.SampleDesc.Count = 1;
+        tDesc.SampleDesc.Quality = 0;
+        tDesc.Usage = D3D11_USAGE_DEFAULT;
+        tDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        tDesc.CPUAccessFlags = 0;
+        tDesc.MiscFlags = 0;
+
+        if (auto hr = device->CreateTexture2D(&tDesc, nullptr, &tDepthStencil); FAILED(hr)) {
+            SAFE_RELEASE(tDepthStencil);
+            ReleaseGlobalDXResources();
+            return false;
+        }
+    }
+
+    {
+        D3D11_DEPTH_STENCIL_DESC dsDesc{};
+        std::memset(&dsDesc, 0, sizeof(dsDesc));
+        dsDesc.DepthEnable = true;
+        dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+
+        dsDesc.StencilEnable = true;
+        dsDesc.StencilReadMask = 0xFF;
+        dsDesc.StencilWriteMask = 0xFF;
+
+        dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+        dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+        dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+        dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+        dsDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+        dsDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+        dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+        dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+        if (FAILED(device->CreateDepthStencilState(&dsDesc, &depthStencilState))) {
+            ReleaseGlobalDXResources();
+            return false;
+        }
+    }
+
+    deviceContext->OMSetDepthStencilState(depthStencilState, 1);
+
+    {
+        D3D11_DEPTH_STENCIL_VIEW_DESC desc{};
+        std::memset(&desc, 0, sizeof(desc));
+        desc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        desc.Texture2D.MipSlice = 0;
+
+        if (FAILED(device->CreateDepthStencilView(tDepthStencil, &desc, &depthStencil))) {
+            SAFE_RELEASE(tDepthStencil);
+            ReleaseGlobalDXResources();
+            return false;
+        }
+        SAFE_RELEASE(tDepthStencil);
+    }
+
     return true;
 }
 
