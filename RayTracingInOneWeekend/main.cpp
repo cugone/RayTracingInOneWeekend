@@ -1003,6 +1003,18 @@ LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wPar
     case WM_DESTROY:
         g_isQuitting = true;
         break;
+    case WM_KEYDOWN: {
+        switch ((unsigned int)wParam) {
+        case VK_ESCAPE:
+            g_isQuitting = true;
+            return 0;
+        default: /* DO NOTHING */
+            break;;
+        }
+        break;
+    }
+    case WM_KEYUP:
+        break;
     default:
         return ::DefWindowProc(hWnd, Msg, wParam, lParam);
     }
