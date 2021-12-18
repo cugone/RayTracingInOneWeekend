@@ -81,6 +81,7 @@ bool CreateVS(ID3DBlob*& vs_bytecode);
 bool CreatePixelShader();
 bool CompilePixelShaderFromFile(ID3DBlob*& ps_bytecode, const std::filesystem::path& path);
 bool CreatePS(ID3DBlob* ps_bytecode);
+void CreateViewport();
 bool CreateBlendState();
 bool CreateSamplerState();
 bool CreateRasterState();
@@ -155,6 +156,11 @@ bool Register() {
     return 0 != ::RegisterClassEx(&wndcls);
 }
 
+float viewportWidth = 1600.0f;
+float viewportHeight = 900.0f;
+float screenWidth = 1600.0f;
+float screenHeight = 900.0f;
+
 HWND Create() {
     if (Register()) {
         int argc{ 0 };
@@ -168,7 +174,13 @@ HWND Create() {
             const auto width = argc > 1 ? static_cast<int>(std::stoll(argv[1])) : 1600;
             const auto height = argc > 2 ? static_cast<int>(std::stoll(argv[2])) : static_cast<int>(std::floor(static_cast<float>(width) / aspect_ratio));
             if (argc > 2) {
-                aspect_ratio = static_cast<float>(width) / static_cast<float>(height);
+                const auto width_f = static_cast<float>(width);
+                const auto height_f = static_cast<float>(height);
+                viewportWidth = width_f;
+                viewportHeight = height_f;
+                screenWidth = width_f;
+                screenHeight = height_f;
+                aspect_ratio = width_f / height_f;
             }
             rect = RECT{0, 0, width, height};
             ::LocalFree(argv);
@@ -413,6 +425,8 @@ bool InitializeDX11() {
     
     deviceContext->OMSetRenderTargets(1, &backbuffer, depthStencil);
 
+    CreateViewport();
+
     if (!CreateBlendState()) {
         return false;
     }
@@ -636,6 +650,18 @@ bool CreateBackbuffer() {
 
     deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
     return true;
+}
+
+void CreateViewport() {
+    D3D11_VIEWPORT viewport{};
+    viewport.Width = viewportWidth;
+    viewport.Height = viewportHeight;
+    viewport.TopLeftX = 0.0f;
+    viewport.TopLeftY = 0.0f;
+    viewport.MinDepth = 0.0f;
+    viewport.MaxDepth = 1.0f;
+
+    deviceContext->RSSetViewports(1, &viewport);
 }
 
 bool CreateBlendState() {
