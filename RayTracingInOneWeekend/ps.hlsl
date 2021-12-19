@@ -7,6 +7,7 @@ struct ps_input {
 cbuffer world_constants : register(b0) {
     float gScreenWidth;
     float gScreenHeight;
+    float2 gWorldPadding;
 };
 
 cbuffer frame_constants : register(b1) {

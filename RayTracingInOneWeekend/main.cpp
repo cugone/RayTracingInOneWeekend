@@ -28,8 +28,11 @@
 #include <dxgi1_6.h>
 
 #include <D3Dcommon.h>
+
 #include <d3d11sdklayers.h>
 #include <dxgidebug.h>
+
+#include <DirectXMath.h>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "DXGI.lib")
@@ -42,7 +45,7 @@
 struct Vertex3D {
     Vector3 position{};
     Color color{};
-    float uv[2];
+    DirectX::XMFLOAT2 uv{};
 };
 
 Color ray_color(const Ray3& r, const Hittable& world, int depth);
@@ -85,6 +88,9 @@ void CreateViewport();
 bool CreateBlendState();
 bool CreateSamplerState();
 bool CreateRasterState();
+bool CreateConstantBuffers();
+void UpdateConstantBuffer(int index, void* buffer, unsigned int size);
+void SetConstantBuffer(int index, void* data);
 
 void RunMessagePump();
 bool UnRegister();
@@ -208,7 +214,9 @@ ID3D11Device5* device{};
 ID3D11DeviceContext4* deviceContext{};
 IDXGIDevice4* dxgiDevice{};
 IDXGISwapChain4* swapchain4{};
-ID3D11RenderTargetView* backbuffer{};
+ID3D11Texture2D* backbuffer_t{};
+ID3D11RenderTargetView* backbuffer_rtv{};
+ID3D11ShaderResourceView* backbuffer_srv{};
 ID3D11DepthStencilView* depthStencil{};
 ID3D11DepthStencilState* depthStencilState{};
 ID3D11VertexShader* vs{};
@@ -223,9 +231,35 @@ std::size_t indexBufferSize{ 0u };
 const unsigned int world_cbuffer_index = 0u;
 const unsigned int frame_cbuffer_index = 1u;
 const unsigned int object_cbuffer_index = 2u;
-ID3D11Buffer* world_cbuffer{};
-ID3D11Buffer* frame_cbuffer{};
-ID3D11Buffer* object_cbuffer{};
+ID3D11Buffer* world_cb{};
+ID3D11Buffer* frame_cb{};
+ID3D11Buffer* object_cb{};
+
+float gSamplesPerPixel = 400.0f;
+float gMaxDepth = 50.0f;
+
+struct world_data_t {
+    float screenWidth;
+    float screenHeight;
+    float padding[2];
+};
+world_data_t world_data;
+
+struct frame_data_t {
+    DirectX::XMMATRIX MvpMatrix;
+    DirectX::XMMATRIX viewMatrix;
+    DirectX::XMMATRIX projectionMatrix;
+    float gameTime;
+    float gameFrameTime;
+    float samplesPerPixel;
+    float maxDepth;
+};
+frame_data_t frame_data;
+
+struct object_data_t {
+    DirectX::XMMATRIX modelMatrix;
+};
+object_data_t object_data;
 
 #define SAFE_RELEASE(x) { \
     if((x)) { \
@@ -276,14 +310,16 @@ void ReleaseGlobalDXResources() {
     SAFE_RELEASE(il);
     SAFE_RELEASE(vertexBuffer);
     SAFE_RELEASE(indexBuffer);
-    SAFE_RELEASE(world_cbuffer);
-    SAFE_RELEASE(frame_cbuffer);
-    SAFE_RELEASE(object_cbuffer);
+    SAFE_RELEASE(world_cb);
+    SAFE_RELEASE(frame_cb);
+    SAFE_RELEASE(object_cb);
     SAFE_RELEASE(ps);
     SAFE_RELEASE(vs);
     SAFE_RELEASE(depthStencil);
     SAFE_RELEASE(depthStencilState);
-    SAFE_RELEASE(backbuffer);
+    SAFE_RELEASE(backbuffer_t);
+    SAFE_RELEASE(backbuffer_rtv);
+    SAFE_RELEASE(backbuffer_srv);
     SAFE_RELEASE(swapchain4);
     SAFE_RELEASE(deviceContext);
     SAFE_RELEASE(device);
@@ -425,7 +461,7 @@ bool InitializeDX11() {
         return false;
     }
     
-    deviceContext->OMSetRenderTargets(1, &backbuffer, depthStencil);
+    deviceContext->OMSetRenderTargets(1, &backbuffer_rtv, depthStencil);
 
     CreateViewport();
 
@@ -438,23 +474,8 @@ bool InitializeDX11() {
     if (!CreateRasterState()) {
         return false;
     }
-    //{
-    //    std::vector v{
-    //         Vertex3D{Vector3{-0.5f, +0.5f, 0.0f}, Color{0.0f, 0.0f, 0.0f}, {0.0f, 1.0f} }
-    //        ,Vertex3D{Vector3{-0.5f, -0.5f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f} }
-    //        ,Vertex3D{Vector3{+0.5f, -0.5f, 0.0f}, Color{0.0f, 1.0f, 0.0f}, {1.0f, 0.0f} }
-    //        ,Vertex3D{Vector3{+0.5f, +0.5f, 0.0f}, Color{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f} }
-    //    };
-    //    if (!CreateVertexBuffer(v, static_cast<decltype(v)::size_type>(v.size()))) {
-    //        return false;
-    //    }
-    //}
-    //{
-    //    std::vector<unsigned int> i{ 0u, 1u, 2u, 0u, 2u, 3u};
-    //    if (!CreateIndexBuffer(i, static_cast<decltype(i)::size_type>(i.size()))) {
-    //        return false;
-    //    }
-    //}
+
+    CreateConstantBuffers();
 
     if (!CreateShaders()) {
         return false;
@@ -545,7 +566,7 @@ bool CreateSwapchain() {
     desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     desc.BufferCount = 2;
     desc.Scaling = DXGI_SCALING_STRETCH;
-    desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
     desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
     desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
 
@@ -637,20 +658,30 @@ bool CreateDepthStencil() {
 }
 
 bool CreateBackbuffer() {
-    ID3D11Texture2D* tBackbuffer{};
-    if (FAILED(swapchain4->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&tBackbuffer)))) {
+    if (FAILED(swapchain4->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&backbuffer_t)))) {
         ReleaseGlobalDXResources();
         return false;
     }
 
-    if (FAILED(device->CreateRenderTargetView(tBackbuffer, nullptr, &backbuffer))) {
-        SAFE_RELEASE(tBackbuffer);
+    D3D11_TEXTURE2D_DESC t_desc;
+    backbuffer_t->GetDesc(&t_desc);
+
+    bool success = true;
+    if (t_desc.BindFlags & D3D11_BIND_RENDER_TARGET) {
+        if(auto hr = device->CreateRenderTargetView(backbuffer_t, nullptr, &backbuffer_rtv); FAILED(hr)) {
+            success &= false;
+        }
+    }
+
+    if (t_desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) {
+        if(auto hr = device->CreateShaderResourceView(backbuffer_t, nullptr, &backbuffer_srv); FAILED(hr)) {
+            success &= false;
+        }
+    }
+    if (!success) {
         ReleaseGlobalDXResources();
         return false;
     }
-    SAFE_RELEASE(tBackbuffer);
-
-    deviceContext->OMSetRenderTargets(1, &backbuffer, nullptr);
     return true;
 }
 
@@ -738,6 +769,114 @@ bool CreateSamplerState() {
     return true;
 }
 
+bool CreateConstantBuffers() {
+    {
+        D3D11_BUFFER_DESC desc{};
+        std::memset(&desc, 0, sizeof(desc));
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        desc.MiscFlags = 0;
+        desc.ByteWidth = sizeof(world_data);
+
+        D3D11_SUBRESOURCE_DATA data{};
+        std::memset(&data, 0, sizeof(data));
+        data.pSysMem = &world_data;
+
+        if (auto hr = device->CreateBuffer(&desc, &data, &world_cb); FAILED(hr)) {
+            return false;
+        }
+    }
+    {
+        D3D11_BUFFER_DESC desc{};
+        std::memset(&desc, 0, sizeof(desc));
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        desc.MiscFlags = 0;
+        desc.ByteWidth = sizeof(frame_data);
+
+        D3D11_SUBRESOURCE_DATA data{};
+        std::memset(&data, 0, sizeof(data));
+        data.pSysMem = &frame_data;
+
+        if (auto hr = device->CreateBuffer(&desc, &data, &frame_cb); FAILED(hr)) {
+            return false;
+        }
+    }
+    {
+        D3D11_BUFFER_DESC desc{};
+        std::memset(&desc, 0, sizeof(desc));
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        desc.MiscFlags = 0;
+        desc.ByteWidth = sizeof(object_data);
+
+        D3D11_SUBRESOURCE_DATA data{};
+        std::memset(&data, 0, sizeof(data));
+        data.pSysMem = &object_data;
+
+        if (auto hr = device->CreateBuffer(&desc, &data, &object_cb); FAILED(hr)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void UpdateConstantBuffer(int index, void* buffer, unsigned int size) {
+    D3D11_MAPPED_SUBRESOURCE resource{};
+    HRESULT hr{};
+    switch (index) {
+    case world_cbuffer_index:
+        hr = deviceContext->Map(world_cb, 0, D3D11_MAP_WRITE_DISCARD, 0U, &resource);
+        break;
+    case frame_cbuffer_index:
+        hr = deviceContext->Map(frame_cb, 0, D3D11_MAP_WRITE_DISCARD, 0U, &resource);
+        break;
+    case object_cbuffer_index:
+        hr = deviceContext->Map(object_cb, 0, D3D11_MAP_WRITE_DISCARD, 0U, &resource);
+        break;
+    default:
+        return;
+    }
+    if(bool succeeded = SUCCEEDED(hr); succeeded) {
+        std::memcpy(resource.pData, buffer, size);
+    }
+    switch (index) {
+    case world_cbuffer_index:
+        deviceContext->Unmap(world_cb, 0);
+        break;
+    case frame_cbuffer_index:
+        deviceContext->Unmap(frame_cb, 0);
+        break;
+    case object_cbuffer_index:
+        deviceContext->Unmap(object_cb, 0);
+        break;
+    default:
+        return;
+    }
+}
+
+void SetConstantBuffer(int index) {
+    switch (index) {
+    case world_cbuffer_index:
+        deviceContext->VSSetConstantBuffers(index, 1, &world_cb);
+        deviceContext->PSSetConstantBuffers(index, 1, &world_cb);
+        break;
+    case frame_cbuffer_index:
+        deviceContext->VSSetConstantBuffers(index, 1, &frame_cb);
+        deviceContext->PSSetConstantBuffers(index, 1, &frame_cb);
+        break;
+    case object_cbuffer_index:
+        deviceContext->VSSetConstantBuffers(index, 1, &object_cb);
+        deviceContext->PSSetConstantBuffers(index, 1, &object_cb);
+        break;
+    default:
+        break;
+    }
+}
+
 bool CreateShaders() {
     const auto vs_created = CreateVertexShader();
     const auto ps_created = CreatePixelShader();
@@ -769,7 +908,12 @@ bool CreateVertexShader() {
             return false;
         } else {
             hlsl_path_canon.make_preferred();
-            if (CompileVertexShaderFromFile(vs_bytecode, hlsl_path_canon) && !WriteShaderCacheToFile(hlsl_path_canon, vs_bytecode)) {
+            if (CompileVertexShaderFromFile(vs_bytecode, hlsl_path_canon)) {
+                if (!WriteShaderCacheToFile(hlsl_path_canon, vs_bytecode)) {
+                    SAFE_RELEASE(vs_bytecode);
+                    return false;
+                }
+            } else {
                 SAFE_RELEASE(vs_bytecode);
                 return false;
             }
@@ -797,8 +941,7 @@ bool CreatePixelShader() {
             SAFE_RELEASE(ps_bytecode);
             return false;
         }
-    }
-    else {
+    } else {
         std::error_code hlsl_ec{};
         if (std::filesystem::path hlsl_path_canon = std::filesystem::canonical(hlsl_path, hlsl_ec); hlsl_ec) {
             OutputError(hlsl_path.string() + " could not be accessed. Reason: " + hlsl_ec.message() + '\n');
@@ -806,7 +949,12 @@ bool CreatePixelShader() {
             return false;
         } else {
             hlsl_path_canon.make_preferred();
-            if (CompilePixelShaderFromFile(ps_bytecode, hlsl_path_canon) && !WriteShaderCacheToFile(hlsl_path_canon, ps_bytecode)) {
+            if (CompilePixelShaderFromFile(ps_bytecode, hlsl_path_canon)) {
+                if (!WriteShaderCacheToFile(hlsl_path_canon, ps_bytecode)) {
+                    SAFE_RELEASE(ps_bytecode);
+                    return false;
+                }
+            } else {
                 SAFE_RELEASE(ps_bytecode);
                 return false;
             }
@@ -1022,74 +1170,99 @@ LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wPar
 }
 
 bool InitializeWorld() {
-    deviceContext->PSSetConstantBuffers(frame_cbuffer_index, 1, &frame_cbuffer);
-    deviceContext->PSSetConstantBuffers(world_cbuffer_index, 1, &world_cbuffer);
-    deviceContext->PSSetConstantBuffers(object_cbuffer_index, 1, &object_cbuffer);
+
+    world_data.screenWidth = screenWidth;
+    world_data.screenHeight = screenHeight;
+
+    UpdateConstantBuffer(world_cbuffer_index, &world_data, sizeof(world_data));
+
+    deviceContext->PSSetConstantBuffers(frame_cbuffer_index, 1, &frame_cb);
+    deviceContext->PSSetConstantBuffers(world_cbuffer_index, 1, &world_cb);
+    deviceContext->PSSetConstantBuffers(object_cbuffer_index, 1, &object_cb);
     return true;
 }
 
 void BeginFrame() {
+    {
+        std::array<ID3D11ShaderResourceView*, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT> buffers{};
+        deviceContext->PSSetShaderResources(0, static_cast<unsigned int>(buffers.size()), buffers.data());
+    }
 }
 
-void Update(float /*deltaSeconds*/) {
+void Update(float deltaSeconds) {
+
+    object_data.modelMatrix = DirectX::XMMatrixIdentity();
+
+    UpdateConstantBuffer(object_cbuffer_index, &object_data, sizeof(object_data));
+
+    frame_data.gameFrameTime = deltaSeconds;
+    frame_data.gameTime += deltaSeconds;
+    frame_data.samplesPerPixel = gSamplesPerPixel;
+    frame_data.maxDepth = gMaxDepth;
+    frame_data.projectionMatrix = DirectX::XMMatrixIdentity();
+    frame_data.viewMatrix = DirectX::XMMatrixIdentity();
+    frame_data.MvpMatrix = DirectX::XMMatrixMultiply(object_data.modelMatrix, DirectX::XMMatrixMultiply(frame_data.viewMatrix, frame_data.projectionMatrix));
+
+    UpdateConstantBuffer(frame_cbuffer_index, &frame_data, sizeof(frame_data));
+
+    deviceContext->PSSetConstantBuffers(frame_cbuffer_index, 1, &frame_cb);
+    deviceContext->PSSetConstantBuffers(world_cbuffer_index, 1, &world_cb);
+    deviceContext->PSSetConstantBuffers(object_cbuffer_index, 1, &object_cb);
 
 }
 
 void Render() {
+
+    deviceContext->OMSetRenderTargets(1, &backbuffer_rtv, depthStencil);
+
     float color[] = {0.0f, 0.0f, 0.0f, 1.0f};
-    deviceContext->ClearRenderTargetView(backbuffer, color);
+    deviceContext->ClearRenderTargetView(backbuffer_rtv, color);
     deviceContext->ClearDepthStencilView(depthStencil, D3D11_CLEAR_DEPTH, 1.0f, 0);
-    deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+    CreateViewport();
+
+    std::vector vbuffer{
+        Vertex3D{Vector3{0.0f, 0.0f, 0.0f}, Color{1.0f, 1.0f, 1.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
+        ,Vertex3D{Vector3{0.5f, 0.0f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
+        //,Vertex3D{Vector3{0.5f, 0.0f, 0.0f}, Color{1.0f, 1.0f, 1.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
+        //,Vertex3D{Vector3{0.0f, 0.5f, 0.0f}, Color{1.0f, 1.0f, 1.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
+    };
+    if (vbuffer.size() > vertexBufferSize) {
+        vertexBufferSize = vbuffer.size() * 2u;
+        SAFE_RELEASE(vertexBuffer);
+        CreateVertexBuffer(vbuffer, vertexBufferSize);
+    }
     {
-        std::vector buffer{
-            Vertex3D{Vector3{0.0f, 0.0f, 0.0f}, Color{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}}
-            ,Vertex3D{Vector3{1.0f, 0.0f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}}
-            ,Vertex3D{Vector3{0.0f, 1.0f, 0.0f}, Color{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f}}
-            ,Vertex3D{Vector3{1.0f, 1.0f, 0.0f}, Color{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}}
-        };
-        if (buffer.size() > vertexBufferSize) {
-            vertexBufferSize = buffer.size() * 2u;
-            SAFE_RELEASE(vertexBuffer);
-            CreateVertexBuffer(buffer, vertexBufferSize);
-        }
-        {
-            D3D11_MAPPED_SUBRESOURCE resource{};
-            if(SUCCEEDED(deviceContext->Map(vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0U, &resource))) {
-                std::memcpy(resource.pData, buffer.data(), sizeof(Vertex3D) * buffer.size());
-                deviceContext->Unmap(vertexBuffer, 0);
-            }
+        D3D11_MAPPED_SUBRESOURCE resource{};
+        if(SUCCEEDED(deviceContext->Map(vertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0U, &resource))) {
+            std::memcpy(resource.pData, vbuffer.data(), sizeof(Vertex3D) * vbuffer.size());
+            deviceContext->Unmap(vertexBuffer, 0);
         }
     }
 
-    {
-        std::vector buffer{
-            0u, 1u, 2u, 0u, 2u, 3u
-        };
-        if (buffer.size() > indexBufferSize) {
-            indexBufferSize = buffer.size() * 2u;
-            SAFE_RELEASE(indexBuffer);
-            CreateIndexBuffer(buffer, indexBufferSize);
-        }
-        {
-            D3D11_MAPPED_SUBRESOURCE resource{};
-            if(SUCCEEDED(deviceContext->Map(indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0U, &resource))) {
-                std::memcpy(resource.pData, buffer.data(), sizeof(unsigned int) * buffer.size());
-                deviceContext->Unmap(indexBuffer, 0);
-            }
-        }
-        unsigned int stride{ sizeof(Vertex3D) };
-        unsigned int offset{ 0u };
-        deviceContext->IASetVertexBuffers(0u, 1u, &vertexBuffer, &stride, &offset);
-        deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0u);
-        deviceContext->DrawIndexed(static_cast<unsigned int>(buffer.size()), 0, 0);
+    std::vector ibuffer{
+        0u, 1u, 1u, 2u, 2u, 0u, //0u, 2u, 3u
+    };
+    if (ibuffer.size() > indexBufferSize) {
+        indexBufferSize = ibuffer.size() * 2u;
+        SAFE_RELEASE(indexBuffer);
+        CreateIndexBuffer(ibuffer, indexBufferSize);
     }
-
-    //TODO(casey): Implement SetVertexBuffers
-    //const unsigned int offset{ 0u };
-    //const unsigned int stride = sizeof(Vector3);
-    //deviceContext->IASetVertexBuffers(0, 1, &vbuffer, &stride, &offset);
-    //deviceContext->Draw(3u, 0u);
+    {
+        D3D11_MAPPED_SUBRESOURCE resource{};
+        if(SUCCEEDED(deviceContext->Map(indexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0U, &resource))) {
+            std::memcpy(resource.pData, ibuffer.data(), sizeof(unsigned int) * ibuffer.size());
+            deviceContext->Unmap(indexBuffer, 0);
+        }
+    }
+    unsigned int stride{ sizeof(Vertex3D) };
+    unsigned int offset{ 0u };
+    deviceContext->IASetVertexBuffers(0u, 1u, &vertexBuffer, &stride, &offset);
+    deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0u);
+    deviceContext->PSSetShaderResources(0, 1, &backbuffer_srv);
+    deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
+    //deviceContext->DrawIndexed(static_cast<unsigned int>(ibuffer.size()), 0, 0);
+    deviceContext->Draw(static_cast<unsigned int>(vbuffer.size()), 0u);
 }
 
 void EndFrame() {
