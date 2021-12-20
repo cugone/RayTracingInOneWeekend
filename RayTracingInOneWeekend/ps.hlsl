@@ -25,5 +25,6 @@ cbuffer object_constants : register(b2) {
 };
 
 float4 main(ps_input input) : SV_TARGET{
-    return input.color;
+    float4 color = float4(input.uv, 0.0f, 1.0f);
+    return color;
 }

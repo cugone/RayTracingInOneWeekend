@@ -1226,9 +1226,9 @@ void Render() {
 
     std::vector vbuffer{
         Vertex3D{Vector3{-1.0f, 1.0f, 0.0f}, Color{0.0f, 0.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
-        ,Vertex3D{Vector3{-1.0f, -1.0f, 0.0f}, Color{0.0f, 1.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
-        ,Vertex3D{Vector3{1.0f, -1.0f, 0.0f}, Color{1.0f, 1.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
-        ,Vertex3D{Vector3{1.0f, 1.0f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
+        ,Vertex3D{Vector3{-1.0f, -1.0f, 0.0f}, Color{0.0f, 1.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 1.0f}}
+        ,Vertex3D{Vector3{1.0f, -1.0f, 0.0f}, Color{1.0f, 1.0f, 0.0f}, DirectX::XMFLOAT2{1.0f, 1.0f}}
+        ,Vertex3D{Vector3{1.0f, 1.0f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, DirectX::XMFLOAT2{1.0f, 0.0f}}
     };
     if (vbuffer.size() > vertexBufferSize) {
         vertexBufferSize = vbuffer.size() * 2u;
