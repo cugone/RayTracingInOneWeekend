@@ -726,7 +726,7 @@ bool CreateRasterState() {
     desc.FillMode = D3D11_FILL_SOLID;
     desc.CullMode = D3D11_CULL_BACK;
     //TODO (casey): Check FrontCounterClockwise
-    desc.FrontCounterClockwise = false;
+    desc.FrontCounterClockwise = true;
     desc.DepthBias = 0;
     desc.DepthBiasClamp = 0.0f;
     desc.SlopeScaledDepthBias = 0.0f;
@@ -1179,6 +1179,9 @@ bool InitializeWorld() {
     deviceContext->PSSetConstantBuffers(frame_cbuffer_index, 1, &frame_cb);
     deviceContext->PSSetConstantBuffers(world_cbuffer_index, 1, &world_cb);
     deviceContext->PSSetConstantBuffers(object_cbuffer_index, 1, &object_cb);
+    deviceContext->VSSetConstantBuffers(frame_cbuffer_index, 1, &frame_cb);
+    deviceContext->VSSetConstantBuffers(world_cbuffer_index, 1, &world_cb);
+    deviceContext->VSSetConstantBuffers(object_cbuffer_index, 1, &object_cb);
     return true;
 }
 
@@ -1222,10 +1225,10 @@ void Render() {
     CreateViewport();
 
     std::vector vbuffer{
-        Vertex3D{Vector3{0.0f, 0.0f, 0.0f}, Color{1.0f, 1.0f, 1.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
-        ,Vertex3D{Vector3{0.5f, 0.0f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
-        //,Vertex3D{Vector3{0.5f, 0.0f, 0.0f}, Color{1.0f, 1.0f, 1.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
-        //,Vertex3D{Vector3{0.0f, 0.5f, 0.0f}, Color{1.0f, 1.0f, 1.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
+        Vertex3D{Vector3{-1.0f, 1.0f, 0.0f}, Color{0.0f, 0.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
+        ,Vertex3D{Vector3{-1.0f, -1.0f, 0.0f}, Color{0.0f, 1.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
+        ,Vertex3D{Vector3{1.0f, -1.0f, 0.0f}, Color{1.0f, 1.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
+        ,Vertex3D{Vector3{1.0f, 1.0f, 0.0f}, Color{1.0f, 0.0f, 0.0f}, DirectX::XMFLOAT2{0.0f, 0.0f}}
     };
     if (vbuffer.size() > vertexBufferSize) {
         vertexBufferSize = vbuffer.size() * 2u;
@@ -1241,7 +1244,7 @@ void Render() {
     }
 
     std::vector ibuffer{
-        0u, 1u, 1u, 2u, 2u, 0u, //0u, 2u, 3u
+        0u, 1u, 2u, 0u, 2u, 3u
     };
     if (ibuffer.size() > indexBufferSize) {
         indexBufferSize = ibuffer.size() * 2u;
@@ -1260,9 +1263,9 @@ void Render() {
     deviceContext->IASetVertexBuffers(0u, 1u, &vertexBuffer, &stride, &offset);
     deviceContext->IASetIndexBuffer(indexBuffer, DXGI_FORMAT_R32_UINT, 0u);
     deviceContext->PSSetShaderResources(0, 1, &backbuffer_srv);
-    deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_POINTLIST);
-    //deviceContext->DrawIndexed(static_cast<unsigned int>(ibuffer.size()), 0, 0);
-    deviceContext->Draw(static_cast<unsigned int>(vbuffer.size()), 0u);
+    deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    deviceContext->DrawIndexed(static_cast<unsigned int>(ibuffer.size()), 0, 0);
+    //deviceContext->Draw(static_cast<unsigned int>(vbuffer.size()), 0u);
 }
 
 void EndFrame() {
