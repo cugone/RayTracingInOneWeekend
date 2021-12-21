@@ -17,7 +17,7 @@ cbuffer world_constants : register(b0) {
 };
 
 cbuffer frame_constants : register(b1) {
-    float4x4 gMVPMatrix;
+    float4x4 gViewProjectionMatrix;
     float4x4 gViewMatrix;
     float4x4 gProjectionMatrix;
     float gGameTime;
@@ -33,11 +33,12 @@ cbuffer object_constants : register(b2) {
 ps_input main(vs_input input) {
     ps_input output;
 
-    float4 pos = float4(input.pos, 1.0f);
+    float4 local = float4(input.pos, 1.0f);
     float4 color = float4(input.color, 1.0f);
+    float4 world = mul(local, gModelMatrix);
+    float4 clip = mul(world, gViewProjectionMatrix);
 
-    output.position = mul(pos, gMVPMatrix);
-
+    output.position = clip;
     output.color = color;
     output.uv = input.uv;
 
