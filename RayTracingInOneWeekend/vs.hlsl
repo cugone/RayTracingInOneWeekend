@@ -25,6 +25,10 @@ cbuffer frame_constants : register(b1) {
     float gGameFrameTime;
     float gSamplesPerPixel;
     float gMaxDepth;
+    float3 gEyePosition;
+    float gVFovDegrees;
+    float gAspectRatio;
+    float gLensRadius;
 };
 
 cbuffer object_constants : register(b2) {
