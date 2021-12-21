@@ -90,7 +90,7 @@ bool CreateSamplerState();
 bool CreateRasterState();
 bool CreateConstantBuffers();
 void UpdateConstantBuffer(int index, void* buffer, unsigned int size);
-void SetConstantBuffer(int index, void* data);
+void SetConstantBuffer(int index);
 
 bool CreateRandomUVTexture();
 void UpdateRandomUVTexture();
