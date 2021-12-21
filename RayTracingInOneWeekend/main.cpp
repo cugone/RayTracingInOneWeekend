@@ -1432,7 +1432,6 @@ void Render() {
     deviceContext->PSSetShaderResources(0, 1, &backbuffer_srv);
     deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     deviceContext->DrawIndexed(static_cast<unsigned int>(ibuffer.size()), 0, 0);
-    //deviceContext->Draw(static_cast<unsigned int>(vbuffer.size()), 0u);
 }
 
 void EndFrame() {
