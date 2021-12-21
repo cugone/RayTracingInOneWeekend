@@ -92,6 +92,11 @@ bool CreateConstantBuffers();
 void UpdateConstantBuffer(int index, void* buffer, unsigned int size);
 void SetConstantBuffer(int index, void* data);
 
+bool CreateRandomUVTexture();
+void UpdateRandomUVTexture();
+bool CreateRandomDiskTexture();
+void UpdateRandomDiskTexture();
+
 void RunMessagePump();
 bool UnRegister();
 
@@ -217,6 +222,10 @@ IDXGISwapChain4* swapchain4{};
 ID3D11Texture2D* backbuffer_t{};
 ID3D11RenderTargetView* backbuffer_rtv{};
 ID3D11ShaderResourceView* backbuffer_srv{};
+ID3D11Texture2D* randomDiskResult_t{};
+ID3D11ShaderResourceView* randomDiskResult_srv{};
+ID3D11Texture1D* randomUVResult_t{};
+ID3D11ShaderResourceView* randomUVResult_srv{};
 ID3D11DepthStencilView* depthStencil{};
 ID3D11DepthStencilState* depthStencilState{};
 ID3D11VertexShader* vs{};
@@ -320,6 +329,10 @@ void ReleaseGlobalDXResources() {
     SAFE_RELEASE(backbuffer_t);
     SAFE_RELEASE(backbuffer_rtv);
     SAFE_RELEASE(backbuffer_srv);
+    SAFE_RELEASE(randomDiskResult_t);
+    SAFE_RELEASE(randomDiskResult_srv);
+    SAFE_RELEASE(randomUVResult_t);
+    SAFE_RELEASE(randomUVResult_srv);
     SAFE_RELEASE(swapchain4);
     SAFE_RELEASE(deviceContext);
     SAFE_RELEASE(device);
@@ -476,6 +489,14 @@ bool InitializeDX11() {
     }
 
     CreateConstantBuffers();
+
+    if (!CreateRandomUVTexture()) {
+        return false;
+    }
+
+    if (!CreateRandomDiskTexture()) {
+        return false;
+    }
 
     if (!CreateShaders()) {
         return false;
@@ -1000,6 +1021,152 @@ bool CreateIndexBuffer(const std::vector<unsigned int>& initialData, std::size_t
         return false;
     }
     return true;
+}
+
+
+bool CreateRandomUVTexture() {
+    D3D11_TEXTURE1D_DESC desc{};
+    std::memset(&desc, 0, sizeof(desc));
+
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    const auto samplesAsUInt = static_cast<unsigned int>(gSamplesPerPixel);
+    desc.Width = samplesAsUInt;
+    desc.ArraySize = 1;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.MipLevels = 1;
+
+    std::vector<std::array<float, 4>> initialData(samplesAsUInt);
+
+    for (unsigned int x = 0; x < samplesAsUInt; ++x) {
+        initialData[x][0] = random_float();
+        initialData[x][1] = random_float();
+        initialData[x][2] = random_float();
+        initialData[x][3] = random_float();
+    }
+
+    D3D11_SUBRESOURCE_DATA data{};
+    data.pSysMem = initialData.data();
+    data.SysMemPitch = desc.Width * (sizeof(float) * 4);
+
+    if (auto hr = device->CreateTexture1D(&desc, &data, &randomUVResult_t); FAILED(hr)) {
+        return false;
+    }
+
+    if (auto hr = device->CreateShaderResourceView(randomUVResult_t, nullptr, &randomUVResult_srv); FAILED(hr)) {
+        return false;
+    }
+    return true;
+}
+
+void UpdateRandomUVTexture() {
+
+    D3D11_TEXTURE1D_DESC desc{};
+    std::memset(&desc, 0, sizeof(desc));
+
+    randomUVResult_t->GetDesc(&desc);
+
+    const auto width = desc.Width;
+    std::vector<std::array<float, 4>> updatedData(width);
+
+    for (unsigned int x = 0; x < width; ++x) {
+        updatedData[x][0] = random_float();
+        updatedData[x][1] = random_float();
+        updatedData[x][2] = random_float();
+        updatedData[x][3] = random_float();
+    }
+
+    D3D11_MAPPED_SUBRESOURCE resource{};
+    std::memset(&resource, 0u, sizeof(resource));
+    if (auto hr = deviceContext->Map(randomUVResult_t, 0u, D3D11_MAP_WRITE_DISCARD, 0u, &resource); SUCCEEDED(hr)) {
+        const auto rowPitch = resource.RowPitch;
+        std::memcpy(resource.pData, updatedData.data(), rowPitch);
+        deviceContext->Unmap(randomUVResult_t, 0u);
+    }
+}
+
+bool CreateRandomDiskTexture() {
+    D3D11_TEXTURE2D_DESC desc{};
+    std::memset(&desc, 0, sizeof(desc));
+
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.Width = static_cast<unsigned int>(screenWidth);
+    desc.Height = static_cast<unsigned int>(screenHeight);
+    desc.ArraySize = 1;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.MipLevels = 1;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+
+    const auto size = std::size_t{static_cast<unsigned int>(screenWidth) * static_cast<unsigned int>(screenHeight)};
+    std::vector<std::array<float, 4>> initialData(size);
+
+    for (unsigned int x = 0; x < size; ++x) {
+        const auto r = random_in_unit_disk();
+        initialData[x][0] = (1.0f + r.x()) / 2.0f;
+        initialData[x][1] = (1.0f + r.y()) / 2.0f;
+        initialData[x][2] = 0.0f;
+        initialData[x][3] = 1.0f;
+    }
+
+    D3D11_SUBRESOURCE_DATA data{};
+    data.pSysMem = initialData.data();
+    data.SysMemPitch = desc.Width * (sizeof(float) * 4);
+    data.SysMemSlicePitch = desc.Width * desc.Height * (sizeof(float) * 4);
+
+    if (auto hr = device->CreateTexture2D(&desc, &data, &randomDiskResult_t); FAILED(hr)) {
+        return false;
+    }
+
+    if (auto hr = device->CreateShaderResourceView(randomDiskResult_t, nullptr, &randomDiskResult_srv); FAILED(hr)) {
+        return false;
+    }
+    return true;
+}
+
+void UpdateRandomDiskTexture() {
+
+
+    D3D11_TEXTURE2D_DESC desc{};
+    std::memset(&desc, 0, sizeof(desc));
+
+    randomDiskResult_t->GetDesc(&desc);
+
+    const auto twidth = desc.Width;
+    const auto theight = desc.Height;
+    const auto tsize = twidth * theight;
+    std::vector<std::array<float, 4>> updatedData(static_cast<std::size_t>(tsize));
+
+    for (unsigned int x = 0; x < tsize; ++x) {
+        const auto r = random_in_unit_disk();
+        updatedData[x][0] = (1.0f + r.x()) / 2.0f;
+        updatedData[x][1] = (1.0f + r.y()) / 2.0f;
+        updatedData[x][2] = 0.0f;
+        updatedData[x][3] = 1.0f;
+    }
+
+    D3D11_MAPPED_SUBRESOURCE resource{};
+    std::memset(&resource, 0u, sizeof(resource));
+    if (auto hr = deviceContext->Map(randomUVResult_t, 0u, D3D11_MAP_WRITE_DISCARD, 0u, &resource); SUCCEEDED(hr)) {
+        const auto rwidth = resource.RowPitch;
+        const auto rheight = resource.DepthPitch;
+        if (rwidth != twidth) {
+            auto* src = updatedData.data();
+            auto* dest = reinterpret_cast<unsigned int*>(resource.pData);
+            for (unsigned int row = 0; row < rheight; ++row) {
+                std::memcpy(dest, src, rwidth);
+                dest += rwidth >> 2;
+                src += twidth;
+            }
+        }
+        else {
+            std::memcpy(resource.pData, updatedData.data(), updatedData.size());
+        }
+        deviceContext->Unmap(randomUVResult_t, 0u);
+    }
 }
 
 void OutputError(const std::string& msg) {
