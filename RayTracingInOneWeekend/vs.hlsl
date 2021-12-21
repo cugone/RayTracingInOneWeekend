@@ -2,6 +2,7 @@ struct ps_input {
     float4 position : SV_POSITION;
     float4 color : COLOR;
     float2 uv : TEXCOORD;
+    float4 world : POSITION;
 };
 
 struct vs_input {
@@ -41,6 +42,7 @@ ps_input main(vs_input input) {
     output.position = clip;
     output.color = color;
     output.uv = input.uv;
+    output.world = world;
 
     return output;
 }
