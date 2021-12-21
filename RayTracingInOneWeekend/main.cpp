@@ -255,7 +255,7 @@ struct world_data_t {
 world_data_t world_data;
 
 struct frame_data_t {
-    DirectX::XMMATRIX MvpMatrix;
+    DirectX::XMMATRIX viewProjectionMatrix;
     DirectX::XMMATRIX viewMatrix;
     DirectX::XMMATRIX projectionMatrix;
     float gameTime;
@@ -1371,7 +1371,7 @@ void Update(float deltaSeconds) {
     frame_data.maxDepth = gMaxDepth;
     frame_data.projectionMatrix = DirectX::XMMatrixIdentity();
     frame_data.viewMatrix = DirectX::XMMatrixIdentity();
-    frame_data.MvpMatrix = DirectX::XMMatrixMultiply(object_data.modelMatrix, DirectX::XMMatrixMultiply(frame_data.viewMatrix, frame_data.projectionMatrix));
+    frame_data.viewProjectionMatrix = DirectX::XMMatrixMultiply(frame_data.viewMatrix, frame_data.projectionMatrix);
 
     UpdateConstantBuffer(frame_cbuffer_index, &frame_data, sizeof(frame_data));
 
