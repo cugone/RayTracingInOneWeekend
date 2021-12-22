@@ -12,6 +12,10 @@ inline float degrees_to_radians(float degrees) {
     return degrees * pi / 180.0f;
 }
 
+inline float radians_to_degrees(float radians) {
+    return radians * 180.0f / pi;
+}
+
 inline float random_float() {
     std::uniform_real_distribution<float> d(0.0f, 1.0f);
     static std::mt19937 g;
