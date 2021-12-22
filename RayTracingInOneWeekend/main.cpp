@@ -265,7 +265,7 @@ struct frame_data_t {
     float maxDepth;
     Vector3 eyePosition;
     Vector3 lookAt;
-    float vFovDegrees;
+    float vFovRadians;
     float aspectRatio;
     float aperture;
     float lensRadius;
@@ -1396,6 +1396,7 @@ void Update(float deltaSeconds) {
     frame_data.projectionMatrix = camera->GetProjectionMatrix();
     frame_data.viewMatrix = camera->GetViewMatrix();
     frame_data.viewProjectionMatrix = camera->GetViewProjectionMatrix();
+    frame_data.vFovRadians = camera->GetFovRadians();
 
     UpdateRandomUVTexture();
     UpdateRandomDiskTexture();
