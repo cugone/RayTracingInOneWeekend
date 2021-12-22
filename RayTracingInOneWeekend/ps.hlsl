@@ -74,6 +74,26 @@ float degrees_to_radians(float degrees) {
     return degrees * pi / 180.0f;
 }
 
+//TODO (casey): Add Material properties constant buffer
+
+float3 ray_color(ray r, float depth) {
+    hit_record rec{};
+
+    if (depth <= 0.0f) {
+        return float3(0.0f, 0.0f, 0.0f);
+    }
+    if (world.hit(r, 0.001f, infinity, rec)) {
+        ray scattered;
+        if (rec.material.scatter(r, rec, scattered)) {
+            return rec.material.color * ray_color(scattered, world, depth - 1);
+        }
+        return float3(0.0f, 0.0f, 0.0f);
+    }
+
+    float3 direction = normalize(r.direction);
+    auto t = 0.5f * (direction.y + 1.0f);
+    return (1.0f - t) * float3(1.0f, 1.0f, 1.0f) + t * float3(0.5f, 0.7f, 1.0f);
+}
 
 float4 main(ps_input input) : SV_TARGET{
     const float pixel_x = 1.0f / gScreenWidth;
