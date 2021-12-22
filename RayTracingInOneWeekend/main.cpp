@@ -755,7 +755,6 @@ bool CreateRasterState() {
     D3D11_RASTERIZER_DESC2 desc{};
     desc.FillMode = D3D11_FILL_SOLID;
     desc.CullMode = D3D11_CULL_BACK;
-    //TODO (casey): Check FrontCounterClockwise
     desc.FrontCounterClockwise = true;
     desc.DepthBias = 0;
     desc.DepthBiasClamp = 0.0f;
