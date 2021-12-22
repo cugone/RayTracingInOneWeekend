@@ -1345,6 +1345,8 @@ LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wPar
     return ::DefWindowProc(hWnd, Msg, wParam, lParam);
 }
 
+Camera camera;
+
 bool InitializeWorld() {
 
     world_data.screenWidth = screenWidth;
@@ -1358,6 +1360,15 @@ bool InitializeWorld() {
     deviceContext->VSSetConstantBuffers(frame_cbuffer_index, 1, &frame_cb);
     deviceContext->VSSetConstantBuffers(world_cbuffer_index, 1, &world_cb);
     deviceContext->VSSetConstantBuffers(object_cbuffer_index, 1, &object_cb);
+
+    const auto lookFrom = Point3{ 13.0f, 2.0f, 3.0f };
+    const auto lookAt = Point3{ 0.0f, 0.0f, 0.0f };
+    const auto vUp = Vector3{ 0.0f, 1.0f, 0.0f };
+    const auto distance_to_focus = 10.0f;
+    const auto aperture = 0.1f;
+
+    camera = Camera{ lookFrom, lookAt, vUp, 20, 3.0f / 2.0f, aperture, distance_to_focus };
+
     return true;
 }
 
@@ -1370,6 +1381,8 @@ void BeginFrame() {
 
 void Update(float deltaSeconds) {
 
+    camera.Update(deltaSeconds);
+
     object_data.modelMatrix = DirectX::XMMatrixIdentity();
 
     UpdateConstantBuffer(object_cbuffer_index, &object_data, sizeof(object_data));
@@ -1378,9 +1391,10 @@ void Update(float deltaSeconds) {
     frame_data.gameTime += deltaSeconds;
     frame_data.samplesPerPixel = gSamplesPerPixel;
     frame_data.maxDepth = gMaxDepth;
-    frame_data.projectionMatrix = DirectX::XMMatrixIdentity();
-    frame_data.viewMatrix = DirectX::XMMatrixIdentity();
-    frame_data.viewProjectionMatrix = DirectX::XMMatrixMultiply(frame_data.viewMatrix, frame_data.projectionMatrix);
+    frame_data.projectionMatrix = camera.GetProjectionMatrix();
+    frame_data.viewMatrix = camera.GetViewMatrix();
+    frame_data.viewProjectionMatrix = camera.GetViewProjectionMatrix();
+
 
     UpdateConstantBuffer(frame_cbuffer_index, &frame_data, sizeof(frame_data));
 
