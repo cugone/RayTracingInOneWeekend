@@ -1398,6 +1398,8 @@ void Update(float deltaSeconds) {
     frame_data.viewMatrix = camera.GetViewMatrix();
     frame_data.viewProjectionMatrix = camera.GetViewProjectionMatrix();
 
+    UpdateRandomUVTexture();
+    UpdateRandomDiskTexture();
 
     UpdateConstantBuffer(frame_cbuffer_index, &frame_data, sizeof(frame_data));
 
