@@ -262,11 +262,20 @@ struct frame_data_t {
     float gameFrameTime;
     float samplesPerPixel;
     float maxDepth;
+    Vector3 eyePosition;
+    Vector3 lookAt;
+    float vFovDegrees;
+    float aspectRatio;
+    float aperture;
+    float lensRadius;
+    float focusDistance;
+    float framePadding;
 };
 frame_data_t frame_data;
 
 struct object_data_t {
     DirectX::XMMATRIX modelMatrix;
+    float radiusPadding3[4];
 };
 object_data_t object_data;
 
