@@ -21,7 +21,7 @@ cbuffer frame_constants : register(b1) {
     float gMaxDepth;
     float3 gEyePosition;
     float3 gLookAt;
-    float gVFovDegrees;
+    float gVFovRadians;
     float gAspectRatio;
     float gAperture;
     float gLensRadius;
@@ -44,23 +44,27 @@ struct ray {
     float3 direction;
 };
 
-struct camera {
-    float3 origin;
-    float3 lower_left_corner;
-    float3 horizontal;
-    float3 vertical;
-    float3 u;
-    float3 v;
-    float3 w;
-    float lens_radius;
-};
+ray get_ray(float s, float t) {
+    const float theta = gVFovRadians;
+    const float h = tan(theta * 0.5f);
+    const float viewport_height = 2.0f * h;
+    const float viewport_width = gAspectRatio * viewport_height;
 
-ray get_ray(camera c, float s, float t) {
-    const float4 random_disk = c.lens_radius * ((tRandomDiskResult.Sample(sSampler, float2(s, t)) * 2.0f) - 1.0f);
-    const float3 offset = c.u * random_disk.x + c.v * random_disk.y;
+    const float3 u = float3(gViewMatrix[0].x, gViewMatrix[0].y, gViewMatrix[0].z);
+    const float3 v = float3(gViewMatrix[1].x, gViewMatrix[1].y, gViewMatrix[1].z);
+    const float3 w = float3(gViewMatrix[2].x, gViewMatrix[2].y, gViewMatrix[2].z);
+
+    const float3 horizontal = gFocusDistance * viewport_width * u;
+    const float3 vertical = gFocusDistance * viewport_height * v;
+
+    const float4 random_disk = gLensRadius * ((tRandomDiskResult.Sample(sSampler, float2(s, t)) * 2.0f) - 1.0f);
+    const float3 offset = u * random_disk.x + v * random_disk.y;
+    const float3 lower_left_corner = gEyePosition - horizontal * 0.5f - vertical * 0.5f - gFocusDistance * w;
+
     ray r;
-    r.position = c.origin + offset;
-    r.direction = c.lower_left_corner + s * c.horizontal + t * c.vertical - c.origin - offset;
+    r.position = gEyePosition + offset;
+    r.direction = lower_left_corner + s * horizontal + t * vertical - gEyePosition - offset;
+
     return r;
 }
 
@@ -75,8 +79,6 @@ float4 main(ps_input input) : SV_TARGET{
     const float pixel_x = 1.0f / gScreenWidth;
     const float pixel_y = 1.0f / gScreenHeight;
 
-    camera c = make_camera(gEyePosition, gLookAt, float4(0.0f, 1.0f, 0.0, 0.0f), gVFovDegrees, gAspectRatio, gAperture, gFocusDistance);
-
     [unroll]
     for (int y = gScreenHeight - pixel_x; y >= 0.0f; y -= pixel_y) {
         [unroll]
@@ -84,17 +86,17 @@ float4 main(ps_input input) : SV_TARGET{
             float4 pixel_color = float4(0.0f, 0.0f, 0.0f, 1.0f);
             [unroll]
             for (int current_sample = 0; current_sample < gSamplesPerPixel / 2; ++current_sample) {
-                const float u = (x + tRandomUV.Sample(sSampler, current_sample / gSamplersPerPixel).r / (gScreenWidth - pixel_x);
-                const float v = (y + tRandomUV.Sample(sSampler, current_sample / gSamplersPerPixel).g) / (gScreenHeight - pixel_y);
-                const float r = get_ray(c, u, v);
+                const float u = (x + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).r) / (gScreenWidth - pixel_x);
+                const float v = (y + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).g) / (gScreenHeight - pixel_y);
+                const ray r = get_ray(u, v);
                 pixel_color += ray_color(r, gMaxDepth);
             }
             [unroll]
             for (int current_sample = gSamplesPerPixel / 2; current_sample < gSamplesPerPixel; ++current_sample) {
-                const float u = (x + tRandomUV.Sample(sSampler, current_sample / gSamplersPerPixel).b / (gScreenWidth - pixel_x);
-                const float v = (y + tRandomUV.Sample(sSampler, current_sample / gSamplersPerPixel).a) / (gScreenHeight - pixel_y);
-                const float r = get_ray(c, u, v);
-                pixel_color += ray_color(r, gMaxDepth);
+                const float u = (x + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).b) / (gScreenWidth - pixel_x);
+                const float v = (y + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).a) / (gScreenHeight - pixel_y);
+                const ray r = get_ray(u, v);
+                pixel_color += float4(ray_color(r, gMaxDepth), 1.0f);
             }
         }
     }
