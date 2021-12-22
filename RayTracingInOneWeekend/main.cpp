@@ -1376,9 +1376,6 @@ void BeginFrame() {
     {
         std::array<ID3D11ShaderResourceView*, D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT> buffers{};
         deviceContext->PSSetShaderResources(0, static_cast<unsigned int>(buffers.size()), buffers.data());
-
-        std::array<ID3D11Buffer*, D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT> nobuffers{};
-        deviceContext->PSSetConstantBuffers(frame_cbuffer_index, static_cast<unsigned int>(nobuffers.size()), nobuffers.data());
     }
 }
 
