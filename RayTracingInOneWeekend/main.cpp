@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <string>
 #include <chrono>
+#include <memory>
 #include <vector>
 
 #define WIN32_LEAN_AND_MEAN
@@ -1344,7 +1345,7 @@ LRESULT CALLBACK WindowProcedure(_In_ HWND hWnd, _In_ UINT Msg, _In_ WPARAM wPar
     return ::DefWindowProc(hWnd, Msg, wParam, lParam);
 }
 
-Camera camera;
+std::unique_ptr<Camera> camera{};
 
 bool InitializeWorld() {
 
@@ -1365,8 +1366,10 @@ bool InitializeWorld() {
     const auto vUp = Vector3{ 0.0f, 1.0f, 0.0f };
     const auto distance_to_focus = 10.0f;
     const auto aperture = 0.1f;
+    const auto fovDegrees = 20.0f;
+    const auto aspectRatio = 3.0f / 2.0f;
 
-    camera = Camera{ lookFrom, lookAt, vUp, 20, 3.0f / 2.0f, aperture, distance_to_focus };
+    camera = std::make_unique<Camera>(lookFrom, lookAt, vUp, fovDegrees, aspectRatio, aperture, distance_to_focus);
 
     return true;
 }
@@ -1380,7 +1383,7 @@ void BeginFrame() {
 
 void Update(float deltaSeconds) {
 
-    camera.Update(deltaSeconds);
+    camera->Update(deltaSeconds);
 
     object_data.modelMatrix = DirectX::XMMatrixIdentity();
 
@@ -1390,9 +1393,9 @@ void Update(float deltaSeconds) {
     frame_data.gameTime += deltaSeconds;
     frame_data.samplesPerPixel = gSamplesPerPixel;
     frame_data.maxDepth = gMaxDepth;
-    frame_data.projectionMatrix = camera.GetProjectionMatrix();
-    frame_data.viewMatrix = camera.GetViewMatrix();
-    frame_data.viewProjectionMatrix = camera.GetViewProjectionMatrix();
+    frame_data.projectionMatrix = camera->GetProjectionMatrix();
+    frame_data.viewMatrix = camera->GetViewMatrix();
+    frame_data.viewProjectionMatrix = camera->GetViewProjectionMatrix();
 
     UpdateRandomUVTexture();
     UpdateRandomDiskTexture();
