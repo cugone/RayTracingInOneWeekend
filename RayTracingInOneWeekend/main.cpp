@@ -924,8 +924,12 @@ bool CreateShaders() {
 
 bool CreateVertexShader() {
     ID3DBlob* vs_bytecode{ nullptr };
-    auto cso_path = std::filesystem::path{ "vs.cso" };
     auto hlsl_path = std::filesystem::path{ "vs.hlsl" };
+#ifdef _DEBUG
+    auto cso_path = std::filesystem::path{ "vsd.cso" };
+#else
+    auto cso_path = std::filesystem::path{ "vs.cso" };
+#endif
     std::error_code cso_ec{};
     const auto cso_exists = std::filesystem::exists(cso_path);
     const auto hlsl_exists = std::filesystem::exists(hlsl_path);
@@ -966,7 +970,11 @@ bool CreateVertexShader() {
 bool CreatePixelShader() {
     ID3DBlob* ps_bytecode{ nullptr };
     auto hlsl_path = std::filesystem::path{ "ps.hlsl" };
+#ifdef _DEBUG
+    auto cso_path = std::filesystem::path{ "psd.cso" };
+#else
     auto cso_path = std::filesystem::path{ "ps.cso" };
+#endif
     std::error_code cso_ec{};
     const auto cso_exists = std::filesystem::exists(cso_path);
     const auto hlsl_exists = std::filesystem::exists(hlsl_path);
@@ -1265,6 +1273,9 @@ bool CompilePixelShaderFromFile(ID3DBlob*& ps_bytecode, const std::filesystem::p
 
 bool WriteShaderCacheToFile(const std::filesystem::path& path, ID3DBlob* blob) {
     auto cso_path = path;
+#ifdef _DEBUG
+    cso_path = std::filesystem::path{ cso_path.replace_extension().string().append("d") };
+#endif
     cso_path.replace_extension(".cso");
     cso_path.make_preferred();
     if (std::ofstream ofs{ cso_path, std::ios_base::binary }; !ofs.write(reinterpret_cast<const char*>(blob->GetBufferPointer()), blob->GetBufferSize())) {
