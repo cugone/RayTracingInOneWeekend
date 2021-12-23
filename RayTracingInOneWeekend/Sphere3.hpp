@@ -38,7 +38,7 @@ bool Sphere3::hit(const Ray3& r, float t_min, float t_max, hit_record& rec) cons
     if(discriminant < 0.0f) return false;
     const auto sqrtd = std::sqrt(discriminant);
 
-    //Find the nearest root that lies in teh acceptable range.
+    //Find the nearest root that lies in the acceptable range.
     auto root = (-half_b - sqrtd) / a;
     if(root < t_min || t_max < root) {
         root = (-half_b + sqrtd) / a;
