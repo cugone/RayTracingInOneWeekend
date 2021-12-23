@@ -31,7 +31,13 @@ cbuffer frame_constants : register(b1) {
 
 cbuffer object_constants : register(b2) {
     float4x4 gModelMatrix;
-    float4 radius_padding3;
+    float4 gMaterialColor;
+    float3 gMaterialAttenuation;
+    float gSphereRadius;
+    float gMaterialType;
+    float gMaterialRoughness;
+    float gMaterialMetallic;
+    float gMaterialRefractionIndex;
 };
 
 SamplerState sSampler : register(s0);
@@ -73,8 +79,6 @@ uniform float pi = 3.141592653589793f;
 float degrees_to_radians(float degrees) {
     return degrees * pi / 180.0f;
 }
-
-//TODO (casey): Add Material properties constant buffer
 
 float3 ray_color(ray r, float depth) {
     hit_record rec{};

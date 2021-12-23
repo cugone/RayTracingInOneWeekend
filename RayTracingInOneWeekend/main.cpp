@@ -276,7 +276,13 @@ frame_data_t frame_data;
 
 struct object_data_t {
     DirectX::XMMATRIX modelMatrix;
-    float radiusPadding3[4];
+    float gMaterialColor[4];
+    Vector3 gMaterialAttenuation;
+    float gSphereRadius;
+    float gMaterialType;
+    float gMaterialRoughness;
+    float gMaterialMetallic;
+    float gMaterialRefractionIndex;
 };
 object_data_t object_data;
 
