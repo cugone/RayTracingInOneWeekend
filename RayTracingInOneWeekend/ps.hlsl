@@ -50,6 +50,148 @@ struct ray {
     float3 direction;
 };
 
+struct Material {
+    float4 color;
+    float3 attenuation;
+    float type;
+    float roughness;
+    float metallic;
+    float refractionIndex;
+};
+
+struct hit_record {
+    float3 p;
+    float3 normal;
+    Material material;
+    float t;
+    bool hit;
+    bool front_face;
+};
+
+struct Sphere {
+    float3 center;
+    float radius;
+    Material material;
+};
+
+#define MAX_SPHERES 512
+Sphere spheres[MAX_SPHERES];
+
+float nrand(float2 uv) {
+    return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
+}
+
+void set_face_normal(out hit_record rec, in ray r, in float3 outward_normal) {
+    rec.front_face = dot(r.direction, outward_normal) < 0.0f;
+    rec.normal = rec.front_face ? outward_normal : -outward_normal;
+}
+
+bool hit(in Sphere sphere, in ray r, in float t_min, in float t_max, out hit_record rec) {
+    const float3 oc = r.position - sphere.center;
+    const float a_len = length(r.direction);
+    const float a = a_len * a_len;
+    const float half_b = dot(oc, r.direction);
+    const float oc_len = length(oc);
+    const float oc_lensq = oc_len * oc_len;
+    const float c = oc_lensq - sphere.radius * sphere.radius;
+    const float discriminant = half_b * half_b - a * c;
+    if (discriminant < 0.0f) {
+        return false;
+    }
+    const float sqrtd = sqrt(discriminant);
+    float root = (-half_b - sqrtd) / a;
+    if (root < t_min || t_max < root) {
+        root = (-half_b + sqrtd) / a;
+        if (root < t_min || t_max < root) {
+            rec.hit = false;
+            return false;
+        }
+    }
+
+    rec.hit = true;
+    rec.t = root;
+    rec.p = r.position + r.direction * rec.t;
+    float3 outward_normal = (rec.p - sphere.center) / sphere.radius;
+    set_face_normal(rec, r, outward_normal);
+    rec.material = sphere.material;
+    return true;
+}
+
+bool hit(in ray r, in float t_min, in float t_max, out hit_record rec) {
+    hit_record temp_rec;
+    temp_rec.hit = false;
+    temp_rec.front_face = false;
+    temp_rec.t = t_max;
+    temp_rec.p = float3(0.0f, 0.0f, 0.0f);
+    temp_rec.normal = float3(0.0f, 0.0f, 0.0f);
+    bool hit_anything = false;
+    float closest = t_max;
+    for (int i = 0; i < MAX_SPHERES; ++i) {
+        if (hit(spheres[i], r, t_min, closest, temp_rec)) {
+            hit_anything = true;
+            closest = temp_rec.t;
+            rec = temp_rec;
+        }
+    }
+    return hit_anything;
+}
+
+#define MAT_TYPE_LAMBERTIAN 0
+#define MAT_TYPE_METAL 1
+#define MAT_TYPE_GLASS 2
+
+bool near_zero(float3 vec) {
+    const float epsilon = 0.000000001f;
+    return (abs(vec.x) < epsilon) && ((vec.y) < epsilon) && (abs(vec.z) < epsilon);
+}
+
+bool near_zero(float2 vec) {
+    const float epsilon = 0.000000001f;
+    return (abs(vec.x) < epsilon) && ((vec.y) < epsilon);
+}
+
+bool scatter(in Material mat, in float2 uv, in ray ray_in, in hit_record rec, out ray ray_out) {
+    switch (mat.type) {
+    case MAT_TYPE_LAMBERTIAN: {
+        float3 direction = rec.normal + gMaterialRoughness * normalize(float3(nrand(uv), nrand(uv), nrand(uv)));
+        if (near_zero(direction)) {
+            direction = rec.normal;
+        }
+        ray_out.position = rec.p;
+        ray_out.direction = direction;
+        return true;
+    }
+    case MAT_TYPE_METAL: {
+        float3 direction = mat.metallic * reflect(normalize(ray_in.direction), rec.normal);
+        ray_out.position = rec.p;
+        ray_out.direction = direction + gMaterialRoughness * normalize(float3(nrand(uv), nrand(uv), nrand(uv)));
+        return dot(ray_out.direction, rec.normal) > 0.0f;
+    }
+    case MAT_TYPE_GLASS: {
+        float3 direction;
+        const float refraction_ratio = rec.front_face ? 1.0f / mat.refractionIndex : mat.refractionIndex;
+        const float3 unit_dir = normalize(ray_in.direction);
+        const float cos_theta = min(dot(-unit_dir, rec.normal), 1.0f);
+        const float sin_theta = sqrt(1.0f - cos_theta * cos_theta);
+        const bool cannot_refract = refraction_ratio * sin_theta > 1.0f;
+        float r0 = (1.0f - refraction_ratio) / (1.0f + refraction_ratio);
+        r0 = r0 * r0;
+        const float reflectance = r0 + (1.0f - r0) * pow((1.0f - cos_theta), 5.0f);
+        if (cannot_refract || reflectance > nrand(saturate(tRandomUV.Sample(sSampler, uv.x).rg))) {
+            direction = reflect(unit_dir, rec.normal);
+        }
+        else {
+            direction = refract(unit_dir, rec.normal, refraction_ratio);
+        }
+        ray_out.position = rec.p;
+        ray_out.direction = direction;
+        return true;
+    }
+    default:
+        return false;
+    }
+}
+
 ray get_ray(float s, float t) {
     const float theta = gVFovRadians;
     const float h = tan(theta * 0.5f);
@@ -80,16 +222,27 @@ float degrees_to_radians(float degrees) {
     return degrees * pi / 180.0f;
 }
 
-float3 ray_color(ray r, float depth) {
-    hit_record rec{};
+#define FLT_MAX 3.402823466e+38F
+
+float3 ray_color(ray r, float2 uv, float3 ray, float depth) {
+    hit_record rec;
+    rec.p = float3(0.0f, 0.0f, 0.0f);
+    rec.normal = float3(0.0f, 0.0f, 1.0f);
+    rec.material;
+    rec.t = 0.0f;
+    rec.hit = false;
+    rec.front_face = false;
 
     if (depth <= 0.0f) {
         return float3(0.0f, 0.0f, 0.0f);
     }
-    if (world.hit(r, 0.001f, infinity, rec)) {
+    //FLT_MAX  is infinity
+    if (hit(r, 0.001f, FLT_MAX, rec)) {
         ray scattered;
-        if (rec.material.scatter(r, rec, scattered)) {
-            return rec.material.color * ray_color(scattered, world, depth - 1);
+        scattered.position = float3(0.0f, 0.0f, 0.0f);
+        scattered.direction = float3(0.0f, 0.0f, 0.0f);
+        if (scatter(rec.material, uv, r, rec, scattered)) {
+            return rec.material.color.rgb * ray_color(scattered, uv, r, depth - 1.0f);
         }
         return float3(0.0f, 0.0f, 0.0f);
     }
@@ -113,14 +266,14 @@ float4 main(ps_input input) : SV_TARGET{
                 const float u = (x + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).r) / (gScreenWidth - pixel_x);
                 const float v = (y + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).g) / (gScreenHeight - pixel_y);
                 const ray r = get_ray(u, v);
-                pixel_color += ray_color(r, gMaxDepth);
+                pixel_color += ray_color(r, float2(u, v), gMaxDepth);
             }
             [unroll]
             for (int current_sample = gSamplesPerPixel / 2; current_sample < gSamplesPerPixel; ++current_sample) {
                 const float u = (x + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).b) / (gScreenWidth - pixel_x);
                 const float v = (y + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).a) / (gScreenHeight - pixel_y);
                 const ray r = get_ray(u, v);
-                pixel_color += float4(ray_color(r, gMaxDepth), 1.0f);
+                pixel_color += float4(ray_color(r, float2(u, v), gMaxDepth), 1.0f);
             }
         }
     }
