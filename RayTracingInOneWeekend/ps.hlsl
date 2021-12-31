@@ -77,47 +77,77 @@ struct Sphere {
 #define MAX_SPHERES 512
 Sphere spheres[MAX_SPHERES];
 
+bool near_zero(float3 vec) {
+    const float epsilon = 0.000000001f;
+    return (abs(vec.x) < epsilon) && ((vec.y) < epsilon) && (abs(vec.z) < epsilon);
+}
+
+bool near_zero(float2 vec) {
+    const float epsilon = 0.000000001f;
+    return (abs(vec.x) < epsilon) && ((vec.y) < epsilon);
+}
+
+bool near_zero(float scalar) {
+    const float epsilon = 0.000000001f;
+    return (abs(scalar) < epsilon);
+}
+
 float nrand(float2 uv) {
     return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
 }
 
-void set_face_normal(out hit_record rec, in ray r, in float3 outward_normal) {
-    rec.front_face = dot(r.direction, outward_normal) < 0.0f;
-    rec.normal = rec.front_face ? outward_normal : -outward_normal;
+void set_face_normal(in ray r, in float3 outward_normal, out bool front_face, out float3 normal) {
+    front_face = dot(r.direction, outward_normal) < 0.0f;
+    normal = front_face ? outward_normal : -outward_normal;
 }
 
-bool hit(in Sphere sphere, in ray r, in float t_min, in float t_max, out hit_record rec) {
-    const float3 oc = r.position - sphere.center;
-    const float a_len = length(r.direction);
-    const float a = a_len * a_len;
-    const float half_b = dot(oc, r.direction);
-    const float oc_len = length(oc);
-    const float oc_lensq = oc_len * oc_len;
-    const float c = oc_lensq - sphere.radius * sphere.radius;
-    const float discriminant = half_b * half_b - a * c;
-    if (discriminant < 0.0f) {
-        return false;
-    }
-    const float sqrtd = sqrt(discriminant);
-    float root = (-half_b - sqrtd) / a;
-    if (root < t_min || t_max < root) {
-        root = (-half_b + sqrtd) / a;
-        if (root < t_min || t_max < root) {
-            rec.hit = false;
-            return false;
+bool hit_s(in Sphere sphere, in ray r, in float t_min, in float t_max, out hit_record rec) {
+    bool hit = false;
+    if (near_zero(sphere.radius)) {
+        hit = false;
+    } else {
+        const float3 oc = r.position - sphere.center;
+        const float a_len = length(r.direction);
+        const float a = a_len * a_len;
+        const float half_b = dot(oc, r.direction);
+        const float oc_len = length(oc);
+        const float oc_lensq = oc_len * oc_len;
+        const float c = oc_lensq - sphere.radius * sphere.radius;
+        const float discriminant = half_b * half_b - a * c;
+        if (discriminant < 0.0f) {
+            hit = false;
+        } else {
+            const float sqrtd = sqrt(discriminant);
+            float root = (-half_b - sqrtd) / a;
+            if (root < t_min || t_max < root) {
+                root = (-half_b + sqrtd) / a;
+                if (root < t_min || t_max < root) {
+                    rec.hit = false;
+                    hit = false;
+                } else {
+                    rec.hit = true;
+                    rec.t = root;
+                    rec.p = r.position + r.direction * rec.t;
+                    float3 outward_normal = (rec.p - sphere.center) / sphere.radius;
+                    set_face_normal(r, outward_normal, rec.front_face, rec.normal);
+                    rec.material = sphere.material;
+                    hit = true;
+                }
+            } else {
+                rec.hit = true;
+                rec.t = root;
+                rec.p = r.position + r.direction * rec.t;
+                float3 outward_normal = (rec.p - sphere.center) / sphere.radius;
+                set_face_normal(r, outward_normal, rec.front_face, rec.normal);
+                rec.material = sphere.material;
+                hit = true;
+            }
         }
     }
-
-    rec.hit = true;
-    rec.t = root;
-    rec.p = r.position + r.direction * rec.t;
-    float3 outward_normal = (rec.p - sphere.center) / sphere.radius;
-    set_face_normal(rec, r, outward_normal);
-    rec.material = sphere.material;
-    return true;
+    return hit;
 }
 
-bool hit(in ray r, in float t_min, in float t_max, out hit_record rec) {
+bool hit_r(in ray r, in float t_min, in float t_max, out hit_record rec) {
     hit_record temp_rec;
     temp_rec.hit = false;
     temp_rec.front_face = false;
@@ -127,7 +157,7 @@ bool hit(in ray r, in float t_min, in float t_max, out hit_record rec) {
     bool hit_anything = false;
     float closest = t_max;
     for (int i = 0; i < MAX_SPHERES; ++i) {
-        if (hit(spheres[i], r, t_min, closest, temp_rec)) {
+        if (hit_s(spheres[i], r, t_min, closest, temp_rec)) {
             hit_anything = true;
             closest = temp_rec.t;
             rec = temp_rec;
@@ -139,16 +169,6 @@ bool hit(in ray r, in float t_min, in float t_max, out hit_record rec) {
 #define MAT_TYPE_LAMBERTIAN 0
 #define MAT_TYPE_METAL 1
 #define MAT_TYPE_GLASS 2
-
-bool near_zero(float3 vec) {
-    const float epsilon = 0.000000001f;
-    return (abs(vec.x) < epsilon) && ((vec.y) < epsilon) && (abs(vec.z) < epsilon);
-}
-
-bool near_zero(float2 vec) {
-    const float epsilon = 0.000000001f;
-    return (abs(vec.x) < epsilon) && ((vec.y) < epsilon);
-}
 
 bool scatter(in Material mat, in float2 uv, in ray ray_in, in hit_record rec, out ray ray_out) {
     switch (mat.type) {
@@ -177,7 +197,10 @@ bool scatter(in Material mat, in float2 uv, in ray ray_in, in hit_record rec, ou
         float r0 = (1.0f - refraction_ratio) / (1.0f + refraction_ratio);
         r0 = r0 * r0;
         const float reflectance = r0 + (1.0f - r0) * pow((1.0f - cos_theta), 5.0f);
-        if (cannot_refract || reflectance > nrand(saturate(tRandomUV.Sample(sSampler, uv.x).rg))) {
+        float4 ralbedo = tRandomUV.SampleLevel(sSampler, uv.x, 0);
+        float r = ralbedo.r;
+        float g = ralbedo.g;
+        if (cannot_refract || reflectance > nrand(float2(r, g))) {
             direction = reflect(unit_dir, rec.normal);
         }
         else {
@@ -205,7 +228,7 @@ ray get_ray(float s, float t) {
     const float3 horizontal = gFocusDistance * viewport_width * u;
     const float3 vertical = gFocusDistance * viewport_height * v;
 
-    const float4 random_disk = gLensRadius * ((tRandomDiskResult.Sample(sSampler, float2(s, t)) * 2.0f) - 1.0f);
+    const float4 random_disk = gLensRadius * ((tRandomDiskResult.SampleLevel(sSampler, float2(s, t), 0) * 2.0f) - 1.0f);
     const float3 offset = u * random_disk.x + v * random_disk.y;
     const float3 lower_left_corner = gEyePosition - horizontal * 0.5f - vertical * 0.5f - gFocusDistance * w;
 
@@ -224,7 +247,8 @@ float degrees_to_radians(float degrees) {
 
 #define FLT_MAX 3.402823466e+38F
 
-float3 ray_color(ray r, float2 uv, float3 ray, float depth) {
+float3 ray_color(ray r, float2 uv, float depth) {
+
     hit_record rec;
     rec.p = float3(0.0f, 0.0f, 0.0f);
     rec.normal = float3(0.0f, 0.0f, 1.0f);
@@ -233,45 +257,48 @@ float3 ray_color(ray r, float2 uv, float3 ray, float depth) {
     rec.hit = false;
     rec.front_face = false;
 
-    if (depth <= 0.0f) {
-        return float3(0.0f, 0.0f, 0.0f);
-    }
-    //FLT_MAX  is infinity
-    if (hit(r, 0.001f, FLT_MAX, rec)) {
-        ray scattered;
-        scattered.position = float3(0.0f, 0.0f, 0.0f);
-        scattered.direction = float3(0.0f, 0.0f, 0.0f);
-        if (scatter(rec.material, uv, r, rec, scattered)) {
-            return rec.material.color.rgb * ray_color(scattered, uv, r, depth - 1.0f);
+    for (; depth > 0.0f; --depth) {
+        if (depth <= 0.0f) {
+            return float3(0.0f, 0.0f, 0.0f);
         }
-        return float3(0.0f, 0.0f, 0.0f);
-    }
 
-    float3 direction = normalize(r.direction);
-    auto t = 0.5f * (direction.y + 1.0f);
-    return (1.0f - t) * float3(1.0f, 1.0f, 1.0f) + t * float3(0.5f, 0.7f, 1.0f);
+        //FLT_MAX  is infinity
+        if (hit_r(r, 0.001f, FLT_MAX, rec)) {
+            ray scattered = r;
+            if (scatter(rec.material, uv, r, rec, scattered)) {
+                float3 color = float3(0.0f, 0.0f, 0.0f);
+                float new_depth = depth - 1.0f;
+                if (new_depth <= 0.0f) {
+                    return float3(0.0f, 0.0f, 0.0f);
+                }
+                color += rec.material.color.rgb * color;
+                return color;
+            }
+            return float3(0.0f, 0.0f, 0.0f);
+        }
+
+        float3 direction = normalize(r.direction);
+        float t = 0.5f * (direction.y + 1.0f);
+        return (1.0f - t) * float3(1.0f, 1.0f, 1.0f) + t * float3(0.5f, 0.7f, 1.0f);
+    }
+    return float3(0.0f, 0.0f, 0.0f);
 }
 
 float4 main(ps_input input) : SV_TARGET{
     const float pixel_x = 1.0f / gScreenWidth;
     const float pixel_y = 1.0f / gScreenHeight;
-
-    [unroll]
-    for (int y = gScreenHeight - pixel_x; y >= 0.0f; y -= pixel_y) {
-        [unroll]
-        for (int x = 0; x < gScreenWidth; x += pixel_x) {
-            float4 pixel_color = float4(0.0f, 0.0f, 0.0f, 1.0f);
-            [unroll]
-            for (int current_sample = 0; current_sample < gSamplesPerPixel / 2; ++current_sample) {
-                const float u = (x + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).r) / (gScreenWidth - pixel_x);
-                const float v = (y + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).g) / (gScreenHeight - pixel_y);
+    float4 pixel_color = float4(0.0f, 0.0f, 0.0f, 1.0f);
+    for (float y = gScreenHeight - pixel_x; y >= 0.0f; y -= pixel_y) {
+        for (float x = 0; x < gScreenWidth; x += pixel_x) {
+            for (float current_sample0 = 0; current_sample0 < gSamplesPerPixel / 2; ++current_sample0) {
+                const float u = (x + tRandomUV.SampleLevel(sSampler, current_sample0 / gSamplesPerPixel, 0).r) / (gScreenWidth - pixel_x);
+                const float v = (y + tRandomUV.SampleLevel(sSampler, current_sample0 / gSamplesPerPixel, 0).g) / (gScreenHeight - pixel_y);
                 const ray r = get_ray(u, v);
-                pixel_color += ray_color(r, float2(u, v), gMaxDepth);
+                pixel_color += float4(ray_color(r, float2(u, v), gMaxDepth), 1.0f);
             }
-            [unroll]
-            for (int current_sample = gSamplesPerPixel / 2; current_sample < gSamplesPerPixel; ++current_sample) {
-                const float u = (x + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).b) / (gScreenWidth - pixel_x);
-                const float v = (y + tRandomUV.Sample(sSampler, current_sample / gSamplesPerPixel).a) / (gScreenHeight - pixel_y);
+            for (float current_sample1 = gSamplesPerPixel / 2; current_sample1 < gSamplesPerPixel; ++current_sample1) {
+                const float u = (x + tRandomUV.SampleLevel(sSampler, current_sample1 / gSamplesPerPixel, 0).b) / (gScreenWidth - pixel_x);
+                const float v = (y + tRandomUV.SampleLevel(sSampler, current_sample1 / gSamplesPerPixel, 0).a) / (gScreenHeight - pixel_y);
                 const ray r = get_ray(u, v);
                 pixel_color += float4(ray_color(r, float2(u, v), gMaxDepth), 1.0f);
             }
